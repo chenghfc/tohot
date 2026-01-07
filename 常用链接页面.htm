@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+    
+<p class="stylish-paragraph">
+
+<!--以下页面刷新 -->
+        <input type=button value=页面重置 onclick="location.reload()"> 
+        <br />
+      
+<!--以下查询平台密码 -->
+          请输入税号：
+<input type="text" id="s" size="30" maxlength="30">
+<input type="button" value="查询平台密码" onclick="ds()">
+<script>
+function ds(){
+   var a = document.getElementById("s").value;
+   window.open('http://10.0.0.23/tpent_new/interface/queryAllPwd.php?nsrsbh='+a);
+   document.getElementById("s").value="";
+}
+</script>
+<br />
+
+<!--以下将10进制证书序列号转为16进制 -->
+请输入10进制证书序列号：
+    <input id="decimalInput" type="text"  style="width: 220px;" />
+    <button onclick="convert()">转换</button><span id="error" class="error"></span>
+    <span id="result" class="result"></span>
+
+    <script>
+        function convert() {
+            const input = document.getElementById('decimalInput').value.trim();
+            const resultEl = document.getElementById('result');
+            const errorEl = document.getElementById('error');
+
+            resultEl.textContent = '';
+            errorEl.textContent = '';
+
+            if (!/^\d+$/.test(input)) {
+                errorEl.textContent = '请输入有效的正整数数字';
+                return;
+            }
+
+            try {
+                const bigIntNum = BigInt(input);
+                resultEl.textContent = bigIntNum.toString(16).toUpperCase();
+            } catch (e) {
+                errorEl.textContent = '转换失败，请检查输入数字';
+            }
+        }
+    </script>
+<br />
+
+<!--以下通过16进制证书序列号查询证书对应续展日期和税号 -->
+请输入16进制证书序列号：
+<input type="text" id="z" size="30" maxlength="30" style="width: 220px;">
+<input type="button" value="查询延期截止日期" onclick="dz()">
+<script>
+function dz(){
+   var b = document.getElementById("z").value;
+   window.open('http://10.0.0.23/tpent_new/interface/queryCainfo.php?serilnum_hex='+b);
+   document.getElementById("z").value="";
+}
+</script>
+<br />
+
+<!--以下查询公司税务ukey开具的pdf电子发票 -->
+请输入发票代码年份（2022年输入22即可）批次（比如001、002）、发票号码(8位)
+<br />
+以下仅支持查询公司从2022年9月起通过税务ukey开具的电子发票
+<br />
+2022年9月起至今，发票代码年份21，批次007
+<br />
+发票代码：03200 <input type="text" id="x1" size="2" maxlength="2" value="21" > <input type="text" id="x2" size="3" maxlength="3" value="007" >11  &nbsp;&nbsp; 发票号码<input type="text" id="x3" size="8" maxlength="8"> 
+<input type="button" value="查询pdf电子发票" onclick="db()">
+<script>
+function db(){
+   var c1 = document.getElementById("x1").value;
+   var c2 = document.getElementById("x2").value;
+   var c3 = document.getElementById("x3").value;
+   window.open('https://tohot.cn/tpent_new/main/dzfp/fpview.php?fphm='+c3+'&fpdm=03200'+c1+c2+'11');
+   document.getElementById("x3").value="";   
+}
+</script>
+<br />
+2023年8月-9月19日，发票代码年份16，批次005，发票号码37开头
+<br />
+发票代码：03200 <input type="text" id="x4" size="2" maxlength="2" value="16" > <input type="text" id="x5" size="3" maxlength="3" value="005" >11  &nbsp;&nbsp; 发票号码<input type="text" id="x6" size="8" maxlength="8"> 
+<input type="button" value="查询pdf电子发票" onclick="dx()">
+<script>
+function dx(){
+   var c4 = document.getElementById("x4").value;
+   var c5 = document.getElementById("x5").value;
+   var c6 = document.getElementById("x6").value;
+   window.open('https://tohot.cn/tpent_new/main/dzfp/fpview.php?fphm='+c6+'&fpdm=03200'+c4+c5+'11');
+   document.getElementById("x6").value="";   
+}
+</script>
+<br />
+
+<!--以下查询高新技术企业资格 -->
+ 请输入税号：
+<input type="text" id="g" size="30" maxlength="30">
+<input type="button" value="查询高新技术企业资格" onclick="dg()">
+<script>
+function dg(){
+   var g = document.getElementById("g").value;
+   window.open('http://www.innocom.gov.cn/gqrdw/c101322/cxfw_content.shtml?code='+g);
+   document.getElementById("g").value="";
+}
+</script>
+<br />
+
+<!--以下查询科技型中小企业资格 -->
+ 请输入税号：
+<input type="text" id="k" size="30" maxlength="30">
+<input type="button" value="查询科技型中小企业资格" onclick="dk()">
+<script>
+function dk(){
+   var k = document.getElementById("k").value;
+   window.open('http://www.chinatorch.gov.cn/zxqyfw/cxfw/cxfw_content.shtml?code='+k);
+   document.getElementById("k").value="";
+}
+</script>
+<br />
+
+<!--以下中文乱码网址转换 -->
+   <input type="text" id="encodedUrl" placeholder="输入乱码网址"  size="70" >
+  <button onclick="decodeUrl()">url中文乱码地址解码</button>
+ <textarea id="decodedResult" rows="1" cols="100" placeholder="转换后网址"></textarea><br/>
+    <script>
+        function decodeUrl() {
+            const encodedUrl = document.getElementById('encodedUrl').value;
+            try {
+                // 对整个 URL 进行解码
+                const decodedUrl = decodeURI(encodedUrl);
+                // 对 URL 组件进行解码
+                const decodedUrlComponent = decodeURIComponent(encodedUrl);
+
+                const resultElement = document.getElementById('decodedResult');
+                resultElement.innerHTML = `${decodedUrl}`;
+            } catch (error) {
+                document.getElementById('decodedResult').innerHTML = `解码出错: ${error.message}`;
+            }
+        }
+    </script>
+
+
+<!--以下繁体简体转换 -->
+  <input type="text" id="text1" placeholder="输入原始文本"  size="70" >
+  <button onclick="convert1()">转换为繁体</button>
+  <button onclick="convert2()">转换为简体</button>
+  <textarea id="text2" rows="1" cols="100" placeholder="转换后文本"></textarea>
+  
+  <script src="https://chenghfc.atomgit.net/grcx/full.js"></script>
+  <script>
+    function convert1() {
+      // 初始化 OpenCC 转换器（简体转繁体，使用台湾标准）
+      const opencc = OpenCC.Converter({ from: 'cn', to: 'tw' });
+      const text = document.getElementById('text1').value;
+      const result = opencc(text);
+      document.getElementById('text2').value = result;
+    }
+    
+    function convert2() {
+      // 初始化 OpenCC 转换器（简体转繁体，使用台湾标准）
+      const opencc = OpenCC.Converter({ from: 'tw', to: 'cn' });
+      const text = document.getElementById('text1').value;
+      const result = opencc(text);
+      document.getElementById('text2').value = result;
+    }
+  </script> 
+
+          
+</p>
+    
+    
+<p class="stylish-paragraph">
+内部链接
+<br />
+<a href="http://tohot.cn/tohotadmin" target="_blank">后台管理系统（维护官网下载链接）</a>&nbsp;&nbsp;&nbsp;
+<a href="http://218.93.115.212:81/bbs/portal.php" target="_blank">社区维护</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.26/bbs_bak/forum.php" target="_blank">旧版社区</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.64:8001/" target="_blank">最新社区</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.64:8001/forum.php?mod=forumdisplay&fid=45" target="_blank">智能客服隐藏板块</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="http://218.93.115.211/tpent_new/web/cadelaysearch/" target="_blank">证书延期情况</a>&nbsp;&nbsp;&nbsp;
+<a href="http://218.93.115.211/tpent_new/online.php" target="_blank">测试访问同和服务器</a>&nbsp;&nbsp;&nbsp;
+<a href="http://116.63.41.90:8080/#/course" target="_blank">税费服务培训管理平台</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.57/tohotnwpt/" target="_blank">办公平台</a>&nbsp;&nbsp;&nbsp;
+<a href="http://www.tohot.cn/redmine4internet" target="_blank">外网日记</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="http://10.0.0.28/khglxt_new" target="_blank">客户管理系统</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.28:8080/khglxt_dep" target="_blank">旧版客户管理系统</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.29/manage/web/" target="_blank">呼叫系统监控</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.46/xxpt-admin" target="_blank">微信学习平台维护</a>&nbsp;&nbsp;&nbsp;
+<a href="http://ca.tohot.cn/ca/webApp/login" target="_blank">证书管理系统</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="http://10.0.0.46/cpyyglxt/" target="_blank">产品运管系统</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.51:7000/www/新的问题类别/全国统一电子税务局/税收分类编码/ssflbm.htm" target="_blank">税收分类编码</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.51:7000/www/新的问题类别/全国统一电子税务局/新电局仿真页面/主页.html" target="_blank">新电局仿真界面</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.51:7000/www/新的问题类别/公积金/公积金仿真界面/单位账户管理.html" target="_blank">公积金仿真界面</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.51:7000/www/新的问题类别/全国统一电子税务局/我要办税/其他/增
+值税减免税代码表.htm" target="_blank">增值税减免代码表</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="http://10.0.0.51:7000/www/新的问题类别/全国统一电子税务局/我要办税/其他/从价房产减免代码表.htm" target="_blank">从价房产减免代码表</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.51:7000/www/新的问题类别/全国统一电子税务局/我要办税/其他/从租房产减免代码表.htm
+" target="_blank">从租房产减免代码表</a>&nbsp;&nbsp;&nbsp;
+<a href="http://10.0.0.51:7000/www/新的问题类别/全国统一电子税务局/我要办税/其他/土地使用税减免代码表.htm" target="_blank">土地使用税减免代码表</a>&nbsp;&nbsp;&nbsp;    
+<a href="http://10.0.0.51:7000/www/新的问题类别/全国统一电子税务局/我要办税/其他/印花税减免代码表.htm" target="_blank">印花税减免代码表</a>&nbsp;&nbsp;&nbsp;   
+<br /> 
+<a href="http://10.0.0.51:7000/www/新的问题类别/人社专区【新】/人社医保联系方式.htm" target="_blank">人社医保联系地址电话</a>&nbsp;&nbsp;&nbsp;       
+<a href="http://10.0.0.51:7000/www/新的问题类别/金三个所税/个税税率表.htm" target="_blank">个税税率表</a>&nbsp;&nbsp;&nbsp;    
+</p>
+
+<p class="stylish-paragraph">
+ 其他链接
+<br />
+<a href="http://114.xixik.com/hangyefenlei/" target="_blank">国民经济行业分类</a>&nbsp;&nbsp;&nbsp;
+<a href="https://md5jiami.bmcx.com/" target="_blank">tpkey加密字符生成</a>&nbsp;&nbsp;&nbsp;
+<a href="https://fpdk.jiangsu.chinatax.gov.cn:81/" target="_blank">发票勾选平台（江苏）</a>&nbsp;&nbsp;&nbsp;
+<a href="https://inv-veri.chinatax.gov.cn/index.html" target="_blank">发票查验平台</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="https://etax.jiangsu.chinatax.gov.cn:8443/xxbg/view/zhsffw/#/query/nsrztcx" target="_blank">电子税务局纳税人状态查询</a>&nbsp;&nbsp;&nbsp;
+<a href="http://www.jsgsj.gov.cn:58888/ecipplatform/" target="_blank">企业信用公示系统（江苏）</a>&nbsp;&nbsp;&nbsp;
+<a href="https://www.cods.org.cn/gscx/" target="_blank">社会信用代码公示查询</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="https://www.0519bd.com/tpent_new/index/" target="_blank">法人一证通官网</a>&nbsp;&nbsp;&nbsp;
+<a href="https://etax.chinatax.gov.cn/webstatic/download-service/100001?dmnHafHu=iz3YcqlqErfSZqD2ljOa_1WeNLfCGLKvG5FLEr1f8g8Vyp_2y4CHEi80wgKl1ySXOGXXqpk1yFTc7DxYMSPHXQrkG0stRORS" target="_blank">个税客户端官方下载</a>&nbsp;&nbsp;&nbsp;
+<a href="http://cdn-kp.jsaisino.com/download-center" target="_blank">金税盘下载官网</a>&nbsp;&nbsp;&nbsp;
+<a href="https://ydz.chanjet.com/" target="_blank">易代账官网</a>&nbsp;&nbsp;&nbsp;
+<a href="https://h.chanjet.com/" target="_blank">好会计官网</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="https://partner.chanjet.com/" target="_blank">畅捷通达尔文系统</a>&nbsp;&nbsp;&nbsp;
+<a href="https://www.mykuaiji.com/?a=zhcw&c=kjjy" target="_blank">畅捷通会计家园</a>&nbsp;&nbsp;&nbsp;
+<a href="https://service.chanjet.com/partner/issue/create" target="_blank">畅捷通产品支持</a>&nbsp;&nbsp;&nbsp;
+<a href="http://credit.customs.gov.cn/" target="_blank">海关代码查询</a>&nbsp;&nbsp;&nbsp;
+<a href="https://www.chinackts.com/download/" target="_blank">擎天商品代码库下载</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="http://jssw.pc.ytb.12366xuetang.com/#/" target="_blank">江苏税务易填表</a>&nbsp;&nbsp;&nbsp;
+<a href="http://znfm.baiwang.com/" target="_blank">百旺智能赋码</a>&nbsp;&nbsp;&nbsp;
+<a href="https://bmjc.jss.com.cn/Contents/smartCode/web/index.html#/index" target="_blank">航信智能赋码</a>&nbsp;&nbsp;&nbsp;
+<a href="https://www.examcoo.com/" target="_blank">考试酷</a>&nbsp;&nbsp;&nbsp;
+<a href="http://scjgj.changzhou.gov.cn/" target="_blank">常州市市场监督管理局</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="http://scjgj.jiangsu.gov.cn/" target="_blank">江苏省市场监督管理局</a>&nbsp;&nbsp;&nbsp;
+<a href="http://www.chinatax.gov.cn/" target="_blank">国税总局</a>&nbsp;&nbsp;&nbsp;
+<a href="https://jiangsu.chinatax.gov.cn/" target="_blank">江苏税务</a>&nbsp;&nbsp;&nbsp;
+<a href="https://jiangsu.chinatax.gov.cn/col/col8602/index.html" target="_blank">常州税务</a>&nbsp;&nbsp;&nbsp;
+<a href="http://www.jiangsu.gov.cn/" target="_blank">江苏人民政府</a>&nbsp;&nbsp;&nbsp;
+<a href="http://www.mof.gov.cn/index.htm" target="_blank">财政部</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="http://czt.jiangsu.gov.cn/" target="_blank">江苏财政</a>&nbsp;&nbsp;&nbsp;
+<a href="http://cl.jscz.org.cn/" target="_blank">常州残联</a>&nbsp;&nbsp;&nbsp;
+<a href="http://gjj.changzhou.gov.cn/" target="_blank">常州公积金</a>&nbsp;&nbsp;&nbsp;
+<a href="http://rsj.changzhou.gov.cn/" target="_blank">常州社保</a>&nbsp;&nbsp;&nbsp;
+<a href="http://ybj.changzhou.gov.cn/" target="_blank">常州医保</a>&nbsp;&nbsp;&nbsp;
+<a href="http://ybinfo.jsgxca.com:8082/" target="_blank">医保CA注册</a>&nbsp;&nbsp;&nbsp;
+<a href="https://fuwu.nhsa.gov.cn/nationalHallSt/#/unitLogin" target="_blank">国家医保网厅</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="https://jiangsu.chinatax.gov.cn/art/2019/8/14/art_13386_261436.html" target="_blank">环保税抽样测算文件</a>&nbsp;&nbsp;&nbsp;
+<a href="http://permit.mee.gov.cn/perxxgkinfo/syssb/xkgg/xkgg!licenseInformation.action" target="_blank">排污许可证查询</a>&nbsp;&nbsp;&nbsp;
+<a href="https://api.map.baidu.com/lbsapi/getpoint/index.html" target="_blank">百度经纬度坐标</a>&nbsp;&nbsp;&nbsp;
+<a href="http://tool.earth.thread0.com/#/index" target="_blank">经纬度度分秒转换</a>&nbsp;&nbsp;&nbsp;
+<a href="https://id.weixingmap.com/" target="_blank">身份证查询</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="https://www.chahaoba.com/" target="_blank">查号吧</a>&nbsp;&nbsp;&nbsp;
+<a href="http://www.66ip.cn/pt.html" target="_blank">代理ip获取</a>&nbsp;&nbsp;&nbsp;
+<a href="https://www.zdaye.com/free/" target="_blank">免费代理ip</a>&nbsp;&nbsp;&nbsp;
+<a href="https://jingyan.baidu.com/article/a3f121e491de94fc9052bbc9.html" target="_blank">如何卸载ie</a>&nbsp;&nbsp;&nbsp;
+<a href="http://www.innocom.gov.cn/gqrdw/c101322/cxfw.shtml" target="_blank">高新企业查询</a>&nbsp;&nbsp;&nbsp;
+<a href="http://innofund.chinatorch.gov.cn/zxqyfw/cxfw/cxfw.shtml" target="_blank">科技型中小企业查询</a>&nbsp;&nbsp;&nbsp;
+ <br />
+ <a href="https://www.chinatax.gov.cn/chinatax/n810219/n810744/n2594306/c101700/index.html" target="_blank">非居民税号格式查询1</a>&nbsp;&nbsp;&nbsp;
+  <a href="https://web-archive.oecd.org/tax/automatic-exchange/crs-implementation-and-assistance/tax-identification-numbers/index.htm#d.en.347759" target="_blank">非居民税号格式查询2</a>&nbsp;&nbsp;&nbsp;
+<a href="https://corbank.czbank.com/CORPORBANK/query_unionBank_index.jsp" target="_blank">银行行号查询</a>&nbsp;&nbsp;&nbsp;
+</p>
+
+<p class="stylish-paragraph">
+处理方案
+<br />
+<a href="http://www.360doc.com/content/21/0714/19/253894_986555990.shtml" target="_blank">生产企业进料加工年度核销操作指引大全</a>&nbsp;&nbsp;&nbsp;
+<a href="https://sghexport.shobserver.com/html/baijiahao/2021/11/16/587248.html" target="_blank">出口退税发票无电子信息</a>&nbsp;&nbsp;&nbsp;
+<a href="https://jingyan.baidu.com/article/e5c39bf584ae8439d660335c.html" target="_blank">vlookup函数</a>&nbsp;&nbsp;&nbsp;
+</p>
+        
+<p class="stylish-paragraph">
+全国各地税务局官网
+<br />
+<a href="http://heilongjiang.chinatax.gov.cn/" target="_blank">黑龙江</a>&nbsp;&nbsp;&nbsp;
+<a href="http://jilin.chinatax.gov.cn/" target="_blank">吉林</a>&nbsp;&nbsp;&nbsp;
+<a href="https://liaoning.chinatax.gov.cn/" target="_blank">辽宁</a>&nbsp;&nbsp;&nbsp;
+<a href="http://dalian.chinatax.gov.cn/" target="_blank">大连</a>&nbsp;&nbsp;&nbsp;
+<a href="http://neimenggu.chinatax.gov.cn/" target="_blank">内蒙古</a>&nbsp;&nbsp;&nbsp;
+<a href="https://xinjiang.chinatax.gov.cn/" target="_blank">新疆</a>&nbsp;&nbsp;&nbsp;
+<a href="https://xizang.chinatax.gov.cn/" target="_blank">西藏</a>&nbsp;&nbsp;&nbsp;
+<a href="http://qinghai.chinatax.gov.cn/" target="_blank">青海</a>&nbsp;&nbsp;&nbsp;
+<a href="http://gansu.chinatax.gov.cn/" target="_blank">甘肃</a>&nbsp;&nbsp;&nbsp;
+<a href="http://ningxia.chinatax.gov.cn/" target="_blank">宁夏</a>&nbsp;&nbsp;&nbsp;
+<a href="https://shaanxi.chinatax.gov.cn/" target="_blank">陕西</a>&nbsp;&nbsp;&nbsp;
+<a href="http://shanxi.chinatax.gov.cn/" target="_blank">山西</a>&nbsp;&nbsp;&nbsp;
+<a href="http://hebei.chinatax.gov.cn/" target="_blank">河北</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="http://beijing.chinatax.gov.cn/" target="_blank">北京</a>&nbsp;&nbsp;&nbsp;
+<a href="https://tianjin.chinatax.gov.cn/" target="_blank">天津</a>&nbsp;&nbsp;&nbsp;
+<a href="http://shandong.chinatax.gov.cn/" target="_blank">山东</a>&nbsp;&nbsp;&nbsp;
+<a href="http://qingdao.chinatax.gov.cn/" target="_blank">青岛</a>&nbsp;&nbsp;&nbsp;
+<a href="https://jiangsu.chinatax.gov.cn/" target="_blank">江苏</a>&nbsp;&nbsp;&nbsp;
+<a href="https://shanghai.chinatax.gov.cn/" target="_blank">上海</a>&nbsp;&nbsp;&nbsp;
+<a href="https://anhui.chinatax.gov.cn/" target="_blank">安徽</a>&nbsp;&nbsp;&nbsp;
+<a href="https://henan.chinatax.gov.cn/" target="_blank">河南</a>&nbsp;&nbsp;&nbsp;
+<a href="http://hubei.chinatax.gov.cn/" target="_blank">湖北</a>&nbsp;&nbsp;&nbsp;
+<a href="http://chongqing.chinatax.gov.cn/" target="_blank">重庆</a>&nbsp;&nbsp;&nbsp;
+<a href="https://sichuan.chinatax.gov.cn/" target="_blank">四川</a>&nbsp;&nbsp;&nbsp;
+<a href="https://yunnan.chinatax.gov.cn/" target="_blank">云南</a>&nbsp;&nbsp;&nbsp;
+<a href="https://guizhou.chinatax.gov.cn/" target="_blank">贵州</a>&nbsp;&nbsp;&nbsp;
+<br />
+<a href="https://hunan.chinatax.gov.cn/" target="_blank">湖南</a>&nbsp;&nbsp;&nbsp;
+<a href="https://jiangxi.chinatax.gov.cn/" target="_blank">江西</a>&nbsp;&nbsp;&nbsp;
+<a href="https://zhejiang.chinatax.gov.cn/" target="_blank">浙江</a>&nbsp;&nbsp;&nbsp;
+<a href="http://ningbo.chinatax.gov.cn/" target="_blank">宁波</a>&nbsp;&nbsp;&nbsp;
+<a href="http://fujian.chinatax.gov.cn/" target="_blank">福建</a>&nbsp;&nbsp;&nbsp;
+<a href="http://xiamen.chinatax.gov.cn/" target="_blank">厦门</a>&nbsp;&nbsp;&nbsp;
+<a href="https://guangdong.chinatax.gov.cn/" target="_blank">广东</a>&nbsp;&nbsp;&nbsp;
+<a href="https://shenzhen.chinatax.gov.cn/" target="_blank">深圳</a>&nbsp;&nbsp;&nbsp;
+<a href="https://guangxi.chinatax.gov.cn/" target="_blank">广西</a>&nbsp;&nbsp;&nbsp;
+<a href="https://hainan.chinatax.gov.cn/" target="_blank">海南</a>&nbsp;&nbsp;&nbsp;
+
+
+        </p>
+        
+    </div>
+</body>
+</html>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: auto;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+}
+
+.stylish-paragraph {
+    font-size: 18px;
+    line-height: 1.6;
+    color: #555;
+    background-color: #e7f3fe;
+    padding: 15px;
+    border-left: 4px solid #2196F3;
+    border-radius: 4px;
+    margin-bottom: 20px; /* 添加段落间距 */
+}
+
+</style>

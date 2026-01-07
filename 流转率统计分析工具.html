@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>流转率统计分析工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #409eff;
+        }
+        .upload-area.active {
+            border-color: #67c23a;
+        }
+        #fileInput {
+            display: none;
+        }
+        .upload-text {
+            color: #666;
+            font-size: 16px;
+        }
+        #exportBtn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #409eff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+        #exportBtn:hover {
+            background-color: #66b1ff;
+        }
+        #exportBtn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>流转率统计分析工具</h1>
+        
+        <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+            <div class="upload-text">
+                <p>点击或拖拽文件到此处上传</p>
+                <p style="font-size: 14px; margin-top: 10px; color: #999;">支持 .xlsx, .xls 格式</p>
+            </div>
+        </div>
+        
+        <button id="exportBtn" disabled>导出统计表格</button>
+        
+        <div class="status" id="status"></div>
+    </div>
+
+    <!-- 引入ExcelJS库 -->
+    <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+
+    <script>
+        // 全局变量存储统计数据
+        let statisticsData = null;
+        let originalFileName = "";
+
+        // 获取DOM元素
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const exportBtn = document.getElementById('exportBtn');
+        const status = document.getElementById('status');
+
+        // 上传区域点击事件
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // 拖拽事件处理
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('active');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFile(fileInput.files[0]);
+            }
+        });
+
+        // 文件选择事件
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+
+        // 处理上传的文件
+        async function handleFile(file) {
+            if (!file) return;
+            
+            // 验证文件类型
+            const fileExt = file.name.split('.').pop().toLowerCase();
+            if (!['xlsx', 'xls'].includes(fileExt)) {
+                status.textContent = '错误：请上传Excel格式的文件（.xlsx, .xls）';
+                status.style.color = '#f56c6c';
+                return;
+            }
+
+            originalFileName = file.name;
+            status.textContent = '正在读取和分析文件，请稍候...';
+            status.style.color = '#409eff';
+            
+            try {
+                // 读取Excel文件
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(await file.arrayBuffer());
+                
+                // 获取第一个工作表
+                const worksheet = workbook.worksheets[0];
+                if (!worksheet) {
+                    throw new Error('文件中没有工作表');
+                }
+
+                // 统计数据
+                statisticsData = analyzeExcelData(worksheet);
+                
+                status.textContent = `分析完成！共统计 ${Object.keys(statisticsData).length} 位受理人数据`;
+                status.style.color = '#67c23a';
+                exportBtn.disabled = false;
+
+            } catch (error) {
+                status.textContent = `处理失败：${error.message}`;
+                status.style.color = '#f56c6c';
+                console.error('处理文件出错：', error);
+            }
+        }
+
+        // 分析Excel数据并统计
+        function analyzeExcelData(worksheet) {
+            // 存储统计结果的对象
+            const stats = {};
+            
+            // 查找列索引
+            let headerRow = null;
+            let receiverColIndex = -1; // 受理人列索引
+            let transferColIndex = -1; // 流转分库列索引
+
+            // 遍历找到表头行和列索引
+            worksheet.eachRow((row, rowNumber) => {
+                if (headerRow === null) {
+                    row.eachCell((cell, colNumber) => {
+                        const cellValue = cell.value ? cell.value.toString().trim() : '';
+                        if (cellValue === '受理人') {
+                            receiverColIndex = colNumber;
+                            headerRow = rowNumber;
+                        } else if (cellValue === '流转分库') {
+                            transferColIndex = colNumber;
+                            headerRow = rowNumber;
+                        }
+                    });
+                }
+            });
+
+            // 检查是否找到必要的列
+            if (receiverColIndex === -1) {
+                throw new Error('未找到"受理人"列，请检查表格格式');
+            }
+            if (transferColIndex === -1) {
+                throw new Error('未找到"流转分库"列，请检查表格格式');
+            }
+
+            // 遍历数据行进行统计
+            worksheet.eachRow((row, rowNumber) => {
+                // 跳过表头行
+                if (rowNumber <= headerRow) return;
+
+                // 获取受理人
+                const receiverCell = row.getCell(receiverColIndex);
+                const receiverName = receiverCell.value ? receiverCell.value.toString().trim() : '';
+                
+                // 跳过空的受理人
+                if (!receiverName) return;
+
+                // 初始化该受理人的统计数据
+                if (!stats[receiverName]) {
+                    stats[receiverName] = {
+                        receiver: receiverName,
+                        serviceOrderCount: 0, // 服务单数量
+                        totalTransfer: 0,      // 总流转
+                        backendTransfer: 0,    // 后台流转
+                        backendTransferRate: 0, // 后台流转率（存储小数）
+                        totalTransferRate: 0    // 总流转率（存储小数）
+                    };
+                }
+
+                // 1. 统计服务单数量
+                stats[receiverName].serviceOrderCount++;
+
+                // 获取流转分库值
+                const transferCell = row.getCell(transferColIndex);
+                const transferValue = transferCell.value ? transferCell.value.toString().trim() : '';
+
+                // 2. 统计总流转（流转分库有内容）
+                if (transferValue) {
+                    stats[receiverName].totalTransfer++;
+                    
+                    // 3. 统计后台流转（流转分库为服务团队一）
+                    if (transferValue === '服务团队一') {
+                        stats[receiverName].backendTransfer++;
+                    }
+                }
+            });
+
+            // 计算流转率（存储原始小数，不拼接百分号）
+            Object.values(stats).forEach(item => {
+                if (item.serviceOrderCount > 0) {
+                    // 4. 后台流转率 = 后台流转 / 服务单数量（保留4位小数）
+                    item.backendTransferRate = parseFloat((item.backendTransfer / item.serviceOrderCount).toFixed(4));
+                    // 5. 总流转率 = 总流转 / 服务单数量（保留4位小数）
+                    item.totalTransferRate = parseFloat((item.totalTransfer / item.serviceOrderCount).toFixed(4));
+                } else {
+                    // 避免除以零的情况
+                    item.backendTransferRate = 0;
+                    item.totalTransferRate = 0;
+                }
+            });
+
+            return stats;
+        }
+
+        // 计算字符宽度（针对中文优化）
+        function calculateCharWidth(text) {
+            if (!text) return 0;
+            let width = 0;
+            for (let i = 0; i < text.length; i++) {
+                const charCode = text.charCodeAt(i);
+                // 中文字符（包含全角字符）宽度计为2，半角字符计为1
+                if ((charCode >= 0x4E00 && charCode <= 0x9FFF) || // 中文汉字
+                    (charCode >= 0xFF00 && charCode <= 0xFFEF) || // 全角符号
+                    (charCode >= 0x3400 && charCode <= 0x4DBF)) {  // 扩展A区汉字
+                    width += 2;
+                } else {
+                    width += 1;
+                }
+            }
+            return width;
+        }
+
+        // 导出统计表格
+        exportBtn.addEventListener('click', async () => {
+            if (!statisticsData) return;
+
+            status.textContent = '正在生成并导出统计表格，请稍候...';
+            status.style.color = '#409eff';
+
+            try {
+                // 创建新的工作簿
+                const workbook = new ExcelJS.Workbook();
+                const worksheet = workbook.addWorksheet('统计结果');
+
+                // 设置表头
+                const headers = [
+                    '受理人', 
+                    '服务单数量', 
+                    '总流转', 
+                    '后台流转', 
+                    '后台流转率', 
+                    '总流转率'
+                ];
+                
+                // 添加表头行
+                const headerRow = worksheet.addRow(headers);
+                // 设置表头样式
+                headerRow.eachCell(cell => {
+                    cell.font = { bold: true, size: 12 };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: 'E6F7FF' }
+                    };
+                });
+
+                // 将统计数据转换为数组并按服务单数量降序排序
+                const sortedData = Object.values(statisticsData).sort((a, b) => {
+                    return b.serviceOrderCount - a.serviceOrderCount;
+                });
+
+                // 添加数据行
+                sortedData.forEach(data => {
+                    const row = worksheet.addRow([
+                        data.receiver,
+                        data.serviceOrderCount,
+                        data.totalTransfer,
+                        data.backendTransfer,
+                        data.backendTransferRate,
+                        data.totalTransferRate
+                    ]);
+                    
+                    // 设置数据单元格样式
+                    row.eachCell((cell, colIndex) => {
+                        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                        cell.font = { size: 12 };
+                        
+                        // 为第5列（后台流转率）和第6列（总流转率）设置百分比格式
+                        if (colIndex === 5 || colIndex === 6) {
+                            cell.numFmt = '0.00%'; // Excel百分比格式，保留两位小数
+                        }
+                    });
+                });
+
+                // 优化列宽计算（针对中文）
+                // 方案1：手动设置基础列宽（确保表头完整显示）
+                const baseColumnWidths = [
+                    10,  // 受理人
+                    12,  // 服务单数量
+                    8,   // 总流转
+                    10,  // 后台流转
+                    12,  // 后台流转率
+                    10   // 总流转率
+                ];
+
+                // 方案2：自动计算列宽（结合中文宽度系数）
+                worksheet.columns.forEach((column, index) => {
+                    let maxWidth = baseColumnWidths[index]; // 基础列宽保底
+                    
+                    // 遍历该列所有单元格计算实际宽度
+                    column.eachCell({ includeEmpty: false }, cell => {
+                        let cellValue = '';
+                        // 处理百分比格式的单元格值显示
+                        if ((index === 4 || index === 5) && typeof cell.value === 'number') {
+                            cellValue = (cell.value * 100).toFixed(2) + '%';
+                        } else {
+                            cellValue = cell.value ? cell.value.toString() : '';
+                        }
+                        const charWidth = calculateCharWidth(cellValue);
+                        // 转换为Excel列宽（增加2个单位余量）
+                        const cellWidth = charWidth + 2;
+                        maxWidth = Math.max(maxWidth, cellWidth);
+                    });
+                    
+                    // 设置最终列宽，最大不超过50
+                    column.width = Math.min(maxWidth, 50);
+                });
+
+                // 生成并下载文件
+                const fileName = `统计结果_${originalFileName}`;
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName;
+                link.click();
+                
+                // 释放URL对象
+                URL.revokeObjectURL(url);
+
+                status.textContent = '导出成功！文件已下载';
+                status.style.color = '#67c23a';
+
+            } catch (error) {
+                status.textContent = `导出失败：${error.message}`;
+                status.style.color = '#f56c6c';
+                console.error('导出文件出错：', error);
+            }
+        });
+    </script>
+</body>
+</html>
