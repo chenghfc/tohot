@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加计抵减分析工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+        .upload-area {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+        }
+        #fileInput {
+            margin: 10px 0;
+        }
+        #parseBtn {
+            padding: 8px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #parseBtn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: center;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .total-row {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            margin-top: 10px;
+        }
+        .success {
+            color: #28a745;
+            margin-top: 10px;
+        }
+        .ratio-select {
+            margin: 10px 0;
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+        }
+        #exportBtn {
+            margin: 10px 0;
+            padding: 8px 20px;
+            background: #218838;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: none;
+        }
+        #exportBtn:hover {
+            background: #1e7e34;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>加计抵减分析工具</h2>
+        <div class="upload-area">
+            <p>请上传增值税及附加税费申报表PDF文件：</p>
+            <input type="file" id="fileInput" accept=".pdf" multiple>
+            <button id="parseBtn" disabled>解析PDF并生成表格</button>
+            <div id="msg"></div>
+        </div>
+        <div id="exportContainer">
+            <button id="exportBtn">导出表格为Excel</button>
+        </div>
+        <div id="tableContainer"></div>
+    </div>
+
+    <!-- 依赖库 -->
+    <script src="./js/pdf.min.js"></script>
+    <script src="./js/exceljs.min.js"></script>
+    <script src="./js/FileSaver.min.js"></script>
+    
+    <script>
+        // 初始化pdf.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = './js/pdf.worker.min.js';
+
+        // DOM元素
+        const fileInput = document.getElementById('fileInput');
+        const parseBtn = document.getElementById('parseBtn');
+        const msg = document.getElementById('msg');
+        const tableContainer = document.getElementById('tableContainer');
+        const exportBtn = document.getElementById('exportBtn');
+        let currentDataList = [];
+        let tableDataWithAccumulation = []; // 存储带累计数的表格数据
+
+        // 监听文件选择
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                parseBtn.disabled = false;
+                msg.textContent = '';
+                tableContainer.innerHTML = '';
+                exportBtn.style.display = 'none';
+            } else {
+                parseBtn.disabled = true;
+            }
+        });
+
+        // 解析PDF
+        parseBtn.addEventListener('click', async () => {
+            const files = fileInput.files;
+            if (files.length === 0) return;
+
+            try {
+                msg.className = '';
+                msg.textContent = `正在解析${files.length}个PDF文件，请稍候...`;
+                
+                const allData = [];
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const arrayBuffer = await readFileAsArrayBuffer(file);
+                    const pdfText = await extractTextFromPDF(arrayBuffer);
+                    const data = extractFields(pdfText);
+                    const emptyFields = Object.entries(data).filter(([k, v]) => v === undefined || v === null).map(([k]) => k);
+                    if (emptyFields.length > 0) {
+                        msg.textContent += `\n${file.name}：部分字段缺失（缺失字段：${emptyFields.join('、')}），已跳过`;
+                    } else {
+                        allData.push(data);
+                    }
+                }
+
+                if (allData.length === 0) {
+                    throw new Error('所有PDF文件均未提取到有效数据');
+                }
+
+                currentDataList = allData;
+                // 生成带累计数的表格数据
+                generateTableWithAccumulation(allData);
+                // 渲染表格
+                renderTable(tableDataWithAccumulation);
+                exportBtn.style.display = 'inline-block';
+
+                msg.className = 'success';
+                msg.textContent = `解析完成！共处理${files.length}个文件，有效数据${allData.length}条，表格已生成`;
+            } catch (error) {
+                msg.className = 'error';
+                msg.textContent = `解析失败：${error.message}`;
+                tableContainer.innerHTML = '';
+                exportBtn.style.display = 'none';
+            }
+        });
+
+        // 读取文件为ArrayBuffer
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(new Error('文件读取失败'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // 提取PDF文本
+        async function extractTextFromPDF(arrayBuffer) {
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                const page = await pdf.getPage(pageNum);
+                const content = await page.getTextContent();
+                const pageText = content.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n';
+            }
+            return fullText;
+        }
+
+        // 提取核心字段
+        function extractFields(text) {
+            const result = {
+                税款所属期: '',
+                本期进项税额: 0, // 直接存储数字类型
+                加计抵减本期发生额: 0 // 直接存储数字类型
+            };
+
+            // 税款所属期
+            const taxPeriodRegex = /税款所属时间[:：]\s*自\s*(\d{4})年(\d{1,2})月(\d{1,2})日\s*至\s*\d{4}年(\d{1,2})月(\d{1,2})日/;
+            const taxPeriodMatch = text.match(taxPeriodRegex);
+            if (taxPeriodMatch) {
+                const year = taxPeriodMatch[1];
+                const month = taxPeriodMatch[2].padStart(2, '0');
+                result.税款所属期 = `${year}年${month}月`;
+            }
+
+            // 本期进项税额（直接转数字）
+            const inputTaxRegex = /当期申报抵扣进项税额合计\s+12=1\+4\+11\s+\d+\s+([\d,]+(\.\d{2})?)\s+([\d,]+(\.\d{2})?)/;
+            const inputTaxMatch = text.match(inputTaxRegex);
+            if (inputTaxMatch) {
+                const cleanNum = inputTaxMatch[3].replace(/,/g, '');
+                result.本期进项税额 = parseFloat(cleanNum) || 0;
+            }
+
+            // 加计抵减本期发生额（直接转数字）
+            const addDeductRegex = /二、加计抵减情况[\s\S]*?8\s+合计\s+([\d,]+(\.\d{2})?)\s+([\d,]+(\.\d{2})?)/;
+            const addDeductMatch = text.match(addDeductRegex);
+            if (addDeductMatch) {
+                const cleanNum = addDeductMatch[3].replace(/,/g, '');
+                result.加计抵减本期发生额 = parseFloat(cleanNum) || 0;
+            }
+
+            return result;
+        }
+
+        // 生成带累计数的表格数据（核心逻辑）
+        function generateTableWithAccumulation(rawData) {
+            // 先按税款所属期排序
+            const sortedData = [...rawData].sort((a, b) => {
+                const dateA = new Date(a.税款所属期.replace('年', '-').replace('月', ''));
+                const dateB = new Date(b.税款所属期.replace('年', '-').replace('月', ''));
+                return dateA - dateB;
+            });
+
+            let accumulatedDeducted = 0; // 已计提累计数（加计抵减本期发生额累计）
+            let accumulatedCanDeduct = 0; // 可计提累计数（实际可计提发生额累计）
+            const defaultRatio = 0.05; // 默认比例
+
+            tableDataWithAccumulation = sortedData.map(item => {
+                // 计算实际可计提发生额
+                const actualCanDeduct = item.本期进项税额 * defaultRatio;
+                
+                // 累计数计算（截止到本行）
+                accumulatedDeducted += item.加计抵减本期发生额;
+                accumulatedCanDeduct += actualCanDeduct;
+
+                return {
+                    税款所属期: item.税款所属期,
+                    本期进项税额: item.本期进项税额,
+                    加计抵减本期发生额: item.加计抵减本期发生额,
+                    实际可计提发生额: actualCanDeduct,
+                    已计提累计数: accumulatedDeducted,
+                    可计提累计数: accumulatedCanDeduct
+                };
+            });
+
+            // 计算总计（用于合计行）
+            const total = {
+                本期进项税额: tableDataWithAccumulation.reduce((sum, item) => sum + item.本期进项税额, 0),
+                加计抵减本期发生额: tableDataWithAccumulation.reduce((sum, item) => sum + item.加计抵减本期发生额, 0),
+                实际可计提发生额: tableDataWithAccumulation.reduce((sum, item) => sum + item.实际可计提发生额, 0),
+                已计提累计数: accumulatedDeducted, // 最终累计数
+                可计提累计数: accumulatedCanDeduct // 最终累计数
+            };
+            tableDataWithAccumulation.total = total;
+        }
+
+        // 渲染表格
+        function renderTable(data) {
+            if (!data || data.length === 0) return;
+
+            // 比例切换时更新数据和表格
+            const updateTable = (ratio = 0.05) => {
+                // 重新计算实际可计提发生额和可计提累计数
+                let accumulatedCanDeduct = 0;
+                const updatedData = data.map(item => {
+                    const actualCanDeduct = item.本期进项税额 * ratio;
+                    accumulatedCanDeduct += actualCanDeduct;
+                    return {
+                        ...item,
+                        实际可计提发生额: actualCanDeduct,
+                        可计提累计数: accumulatedCanDeduct
+                    };
+                });
+
+                // 更新总计
+                updatedData.total = {
+                    ...data.total,
+                    实际可计提发生额: updatedData.reduce((sum, item) => sum + item.实际可计提发生额, 0),
+                    可计提累计数: accumulatedCanDeduct
+                };
+
+                // 生成表格HTML
+                let tableHtml = `
+                    <div>
+                        <label for="deductRatio">选择加计抵减比例：</label>
+                        <select id="deductRatio" class="ratio-select">
+                            <option value="0.05" ${ratio === 0.05 ? 'selected' : ''}>5%</option>
+                            <option value="0.15" ${ratio === 0.15 ? 'selected' : ''}>15%</option>
+                        </select>
+                    </div>
+                    <table id="resultTable">
+                        <thead>
+                            <tr>
+                                <th>税款所属期</th>
+                                <th>本期进项税额（元）</th>
+                                <th>附表四加计抵减本期发生额（元）</th>
+                                <th>实际可计提发生额（元）</th>
+                                <th>已计提累计数（元）</th>
+                                <th>可计提累计数（元）</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                // 渲染数据行
+                updatedData.forEach((item) => {
+                    if (item.税款所属期) { // 排除合计对象
+                        tableHtml += `
+                            <tr>
+                                <td>${item.税款所属期 || '-'}</td>
+                                <td>${item.本期进项税额.toFixed(2)}</td>
+                                <td>${item.加计抵减本期发生额.toFixed(2)}</td>
+                                <td>${item.实际可计提发生额.toFixed(2)}</td>
+                                <td>${item.已计提累计数.toFixed(2)}</td>
+                                <td>${item.可计提累计数.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    }
+                });
+
+                // 渲染合计行
+                tableHtml += `
+                            <tr class="total-row">
+                                <td>合计</td>
+                                <td>${updatedData.total.本期进项税额.toFixed(2)}</td>
+                                <td>${updatedData.total.加计抵减本期发生额.toFixed(2)}</td>
+                                <td>${updatedData.total.实际可计提发生额.toFixed(2)}</td>
+                                <td>${updatedData.total.已计提累计数.toFixed(2)}</td>
+                                <td>${updatedData.total.可计提累计数.toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                `;
+
+                tableContainer.innerHTML = tableHtml;
+
+                // 绑定比例切换事件
+                const deductRatio = document.getElementById('deductRatio');
+                deductRatio.addEventListener('change', (e) => {
+                    updateTable(parseFloat(e.target.value));
+                });
+            };
+
+            // 初始化表格
+            updateTable(0.05);
+        }
+
+        // 工具函数：判断是否为数字
+        function isNumeric(value) {
+            return !isNaN(parseFloat(value)) && isFinite(value);
+        }
+
+        // 核心：ExcelJS导出（支持新增累计列）
+        exportBtn.addEventListener('click', async () => {
+            const table = document.getElementById('resultTable');
+            if (!table) {
+                alert('暂无表格数据可导出！');
+                return;
+            }
+
+            try {
+                // 1. 创建Excel工作簿和工作表
+                const workbook = new ExcelJS.Workbook();
+                const worksheet = workbook.addWorksheet('加计抵减分析数据');
+
+                // 2. 设置6列固定列宽
+                worksheet.columns = [
+                    { width: 11 },  // 税款所属期
+                    { width: 20 },  // 本期进项税额（元）
+                    { width: 34 },  // 附表四加计抵减本期发生额（元）
+                    { width: 25 },  // 实际可计提发生额（元）
+                    { width: 20 },  // 已计提累计数（元）
+                    { width: 20 }   // 可计提累计数（元）
+                ];
+
+                // 3. 读取表格数据并处理存储类型
+                const rows = table.querySelectorAll('tr');
+                let excelRowIndex = 1;
+
+                rows.forEach((row) => {
+                    const cells = row.querySelectorAll('td, th');
+                    
+                    // 遍历6列单元格
+                    for (let colIndex = 0; colIndex < 6; colIndex++) {
+                        const cellText = cells[colIndex] ? cells[colIndex].textContent.trim() : '';
+                        const excelCell = worksheet.getCell(excelRowIndex, colIndex + 1);
+
+                        // 区分存储类型
+                        if (colIndex === 0 || excelRowIndex === 1 || (excelRowIndex === rows.length && colIndex === 0)) {
+                            // 文本类型：税款所属期、表头、合计行第1列
+                            excelCell.value = cellText;
+                        } else if (isNumeric(cellText)) {
+                            // 数字类型：所有数值列
+                            excelCell.value = parseFloat(cellText);
+                        } else {
+                            excelCell.value = cellText;
+                        }
+
+                        // 统一样式：居中+常规格式+边框
+                        excelCell.alignment = {
+                            horizontal: 'center',
+                            vertical: 'center',
+                            wrapText: true
+                        };
+                        excelCell.numFmt = 'General';
+                        excelCell.font = {
+                            name: '宋体',
+                            size: 12
+                        };
+                        excelCell.border = {
+                            top: { style: 'thin' },
+                            bottom: { style: 'thin' },
+                            left: { style: 'thin' },
+                            right: { style: 'thin' }
+                        };
+                    }
+
+                    excelRowIndex++;
+                });
+
+                // 4. 生成并下载文件
+                const date = new Date().toLocaleDateString().replace(/\//g, '-');
+                const fileName = `加计抵减分析_${date}.xlsx`;
+                
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                saveAs(blob, fileName);
+
+                msg.className = 'success';
+                msg.textContent = '导出成功！';
+            } catch (error) {
+                msg.className = 'error';
+                msg.textContent = `导出失败：${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

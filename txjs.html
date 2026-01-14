@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>退休时间计算器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+        }
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 15px;
+        }
+        .input-mode-tabs {
+            display: flex;
+            margin-bottom: 25px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            color: #7f8c8d;
+            cursor: pointer;
+            position: relative;
+        }
+        .tab-btn.active {
+            color: #3498db;
+            font-weight: 600;
+        }
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: #3498db;
+        }
+        .input-section {
+            display: none;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        .input-section.active {
+            display: grid;
+        }
+        .input-label {
+            font-size: 16px;
+            color: #34495e;
+            text-align: right;
+            padding-right: 10px;
+        }
+        .input-control {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #bdc3c7;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .input-control:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        .id-card-input {
+            letter-spacing: 1px;
+        }
+        .error-hint {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 5px;
+            grid-column: 2;
+            display: none;
+        }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .result-section {
+            margin-top: 30px;
+            border-top: 1px dashed #ecf0f1;
+            padding-top: 25px;
+        }
+        .result-title {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+            padding-left: 10px;
+        }
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+        }
+        .result-table th, .result-table td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .result-table th {
+            background-color: #f8f9fa;
+            color: #34495e;
+            font-weight: 600;
+            width: 33.33%;
+        }
+        .result-table td {
+            color: #2c3e50;
+            font-size: 16px;
+        }
+        .policy-note {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #7f8c8d;
+            line-height: 1.7;
+        }
+        @media (max-width: 768px) {
+            .input-section {
+                grid-template-columns: 1fr;
+            }
+            .input-label {
+                text-align: left;
+                margin-bottom: 8px;
+                padding-right: 0;
+            }
+            .radio-group {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .error-hint {
+                grid-column: 1;
+            }
+            .result-table th, .result-table td {
+                padding: 12px 8px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>退休时间计算器</h1>
+
+        <!-- 输入模式切换 -->
+        <div class="input-mode-tabs">
+            <button class="tab-btn active" data-mode="id-card">身份证号输入</button>
+            <button class="tab-btn" data-mode="manual">手动信息输入</button>
+        </div>
+
+        <!-- 身份证号输入区 -->
+        <div class="input-section active" id="id-card-section">
+            <div class="input-label">身份证号码：</div>
+            <input type="text" id="idCardInput" class="input-control id-card-input" 
+                   placeholder="请输入15位或18位身份证号" maxlength="18">
+            
+            <div class="error-hint" id="idCardError">身份证号格式错误，请检查后重新输入</div>
+            
+            <div class="input-label">是否女干部/管理岗：</div>
+            <div class="radio-group">
+                <div class="radio-item">
+                    <input type="radio" id="idCadreNo" name="idCadre" value="no" checked>
+                    <label for="idCadreNo">否（工人岗）</label>
+                </div>
+                <div class="radio-item">
+                    <input type="radio" id="idCadreYes" name="idCadre" value="yes">
+                    <label for="idCadreYes">是</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 手动输入区 -->
+        <div class="input-section" id="manual-section">
+            <div class="input-label">出生日期：</div>
+            <input type="date" id="manualBirthDate" class="input-control">
+
+            <div class="input-label">性别：</div>
+            <div class="radio-group">
+                <div class="radio-item">
+                    <input type="radio" id="manualMale" name="manualGender" value="male" checked>
+                    <label for="manualMale">男</label>
+                </div>
+                <div class="radio-item">
+                    <input type="radio" id="manualFemale" name="manualGender" value="female">
+                    <label for="manualFemale">女</label>
+                </div>
+            </div>
+
+            <div class="input-label">是否女干部/管理岗：</div>
+            <div class="radio-group">
+                <div class="radio-item">
+                    <input type="radio" id="manualCadreNo" name="manualCadre" value="no" checked>
+                    <label for="manualCadreNo">否（工人岗）</label>
+                </div>
+                <div class="radio-item">
+                    <input type="radio" id="manualCadreYes" name="manualCadre" value="yes">
+                    <label for="manualCadreYes">是</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 结果展示区域 -->
+        <div class="result-section">
+            <div class="result-title">退休计算结果（以2025年为基准）</div>
+            <table class="result-table">
+                <thead>
+                    <tr>
+                        <th>计算项目</th>
+                        <th>原退休政策（无延迟）</th>
+                        <th>2025年延迟退休政策</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>当前年龄</th>
+                        <td id="resCurrentAge">-</td>
+                        <td id="resCurrentAgeDelay">-</td>
+                    </tr>
+                    <tr>
+                        <th>退休年月</th>
+                        <td id="resOriginalRetire">-</td>
+                        <td id="resDelayedRetire">-</td>
+                    </tr>
+                    <tr>
+                        <th>离退休剩余年限</th>
+                        <td id="resYearsOriginal">-</td>
+                        <td id="resYearsDelayed">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 政策说明与解析提示 -->
+        <div class="policy-note">
+            <strong>1. 计算依据（2025年渐进式延迟退休政策）：</strong><br>
+            - 男职工：原60岁，每4个月延迟1个月，1976年9月后出生直接63岁；<br>
+            - 女工人岗：原50岁，每2个月延迟1个月，1984年11月后出生直接55岁；<br>
+            - 女干部/管理岗：原55岁，每4个月延迟1个月，1981年9月后出生直接58岁。<br><br>
+            
+            <strong>2. 身份证解析说明：</strong><br>
+            - 18位身份证：第7-14位提取生日（YYYYMMDD），第17位判断性别（奇数男/偶数女）；<br>
+            - 15位身份证：第7-12位提取生日（YYMMDD，补“19”前缀），第15位判断性别；<br>
+            - 女干部身份需手动选择（身份证无法识别岗位类型）。
+        </div>
+    </div>
+
+    <script>
+        // 全局常量与DOM元素
+        const BASE_YEAR = 2025;
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const inputSections = document.querySelectorAll('.input-section');
+        const idCardInput = document.getElementById('idCardInput');
+        const idCardError = document.getElementById('idCardError');
+        const manualBirthDate = document.getElementById('manualBirthDate');
+        const resultEls = {
+            currentAge: document.getElementById('resCurrentAge'),
+            currentAgeDelay: document.getElementById('resCurrentAgeDelay'),
+            originalRetire: document.getElementById('resOriginalRetire'),
+            delayedRetire: document.getElementById('resDelayedRetire'),
+            yearsOriginal: document.getElementById('resYearsOriginal'),
+            yearsDelayed: document.getElementById('resYearsDelayed')
+        };
+
+        // 1. 输入模式切换
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.mode;
+                // 更新标签状态
+                tabBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                // 更新输入区显示
+                inputSections.forEach(section => section.classList.remove('active'));
+                document.getElementById(`${mode}-section`).classList.add('active');
+                // 切换时触发计算（保留已有数据）
+                if (mode === 'id-card' && idCardInput.value.trim()) {
+                    parseIdCard(idCardInput.value.trim());
+                } else if (mode === 'manual' && manualBirthDate.value) {
+                    calculateFromManualInput();
+                }
+            });
+        });
+
+        // 2. 身份证解析核心函数
+        function parseIdCard(idCard) {
+            idCard = idCard.replace(/\s/g, ''); // 去除空格
+            let birthStr = '';
+            let genderCode = '';
+            let isValid = true;
+
+            // 验证长度并提取信息
+            if (idCard.length === 18) {
+                birthStr = idCard.substring(6, 14); // YYYYMMDD
+                genderCode = idCard.substring(16, 17); // 第17位
+            } else if (idCard.length === 15) {
+                birthStr = '19' + idCard.substring(6, 12); // 补19前缀→YYYYMMDD
+                genderCode = idCard.substring(14, 15); // 第15位
+            } else {
+                isValid = false;
+            }
+
+            // 验证生日格式
+            if (isValid) {
+                const year = parseInt(birthStr.substring(0, 4));
+                const month = parseInt(birthStr.substring(4, 6));
+                const day = parseInt(birthStr.substring(6, 8));
+                const birthDate = new Date(year, month - 1, day);
+                // 验证日期有效性
+                if (birthDate.getFullYear() !== year || 
+                    birthDate.getMonth() + 1 !== month || 
+                    birthDate.getDate() !== day ||
+                    year < 1900 || year > BASE_YEAR) {
+                    isValid = false;
+                } else {
+                    // 填充到手动输入区（数据联动）
+                    manualBirthDate.value = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                    // 判断性别并填充
+                    const gender = parseInt(genderCode) % 2 === 1 ? 'male' : 'female';
+                    document.querySelector(`input[name="manualGender"][value="${gender}"]`).checked = true;
+                    // 同步女干部选择
+                    const isCadre = document.querySelector('input[name="idCadre"]:checked').value;
+                    document.querySelector(`input[name="manualCadre"][value="${isCadre}"]`).checked = true;
+                }
+            }
+
+            // 处理结果
+            if (isValid) {
+                idCardError.style.display = 'none';
+                idCardInput.style.borderColor = '#bdc3c7';
+                // 触发计算
+                const birthDate = new Date(manualBirthDate.value);
+                const gender = document.querySelector('input[name="manualGender"]:checked').value;
+                const isCadre = document.querySelector('input[name="idCadre"]:checked').value === 'yes';
+                calculateAndUpdate(birthDate, gender, isCadre);
+            } else {
+                idCardError.style.display = 'block';
+                idCardInput.style.borderColor = '#e74c3c';
+                resetResults();
+            }
+        }
+
+        // 3. 手动输入计算
+        function calculateFromManualInput() {
+            const birthDateStr = manualBirthDate.value;
+            if (!birthDateStr) {
+                resetResults();
+                return;
+            }
+            const birthDate = new Date(birthDateStr);
+            const gender = document.querySelector('input[name="manualGender"]:checked').value;
+            const isCadre = document.querySelector('input[name="manualCadre"]:checked').value === 'yes';
+            calculateAndUpdate(birthDate, gender, isCadre);
+        }
+
+        // 4. 退休计算核心逻辑
+        function calculateAndUpdate(birthDate, gender, isCadre) {
+            const birthYear = birthDate.getFullYear();
+            const birthMonth = birthDate.getMonth() + 1;
+
+            // 计算当前年龄
+            const currentAge = BASE_YEAR - birthYear;
+
+            // 计算原退休信息
+            const { originalYear, originalMonth } = getOriginalRetirement(gender, isCadre, birthYear, birthMonth);
+            const yearsOriginal = Math.max(0, originalYear - BASE_YEAR);
+
+            // 计算延迟退休信息
+            const { delayedYear, delayedMonth } = getDelayedRetirement(gender, isCadre, birthYear, birthMonth);
+            const yearsDelayed = Math.max(0, delayedYear - BASE_YEAR);
+
+            // 格式化显示
+            const formatMonth = (month) => month.toString().padStart(2, '0');
+            const originalRetireStr = `${originalYear}年${formatMonth(originalMonth)}月`;
+            const delayedRetireStr = `${delayedYear}年${formatMonth(delayedMonth)}月`;
+
+            // 更新结果
+            resultEls.currentAge.textContent = `${currentAge}岁`;
+            resultEls.currentAgeDelay.textContent = `${currentAge}岁`;
+            resultEls.originalRetire.textContent = originalRetireStr;
+            resultEls.delayedRetire.textContent = delayedRetireStr;
+            resultEls.yearsOriginal.textContent = `${yearsOriginal}年`;
+            resultEls.yearsDelayed.textContent = `${yearsDelayed}年`;
+        }
+
+        // 4.1 原退休时间计算
+        function getOriginalRetirement(gender, isCadre, birthYear, birthMonth) {
+            let originalAge;
+            if (gender === 'male') {
+                originalAge = 60;
+            } else {
+                originalAge = isCadre ? 55 : 50;
+            }
+            let year = birthYear + originalAge;
+            let month = birthMonth;
+            // 月份进位处理
+            if (month > 12) {
+                year += 1;
+                month -= 12;
+            }
+            return { originalYear: year, originalMonth: month };
+        }
+
+        // 4.2 延迟退休时间计算
+        function getDelayedRetirement(gender, isCadre, birthYear, birthMonth) {
+            let baseAge, delayRate, finalAge, thresholdYear, thresholdMonth;
+
+            // 按人员类型配置参数
+            if (gender === 'male') {
+                baseAge = 60;
+                delayRate = 4;
+                finalAge = 63;
+                thresholdYear = 1976;
+                thresholdMonth = 9;
+            } else if (isCadre) {
+                baseAge = 55;
+                delayRate = 4;
+                finalAge = 58;
+                thresholdYear = 1981;
+                thresholdMonth = 9;
+            } else {
+                baseAge = 50;
+                delayRate = 2;
+                finalAge = 55;
+                thresholdYear = 1984;
+                thresholdMonth = 11;
+            }
+
+            // 判断是否触发最终年龄
+            const isOverThreshold = (birthYear > thresholdYear) || 
+                                    (birthYear === thresholdYear && birthMonth >= thresholdMonth);
+            
+            if (isOverThreshold) {
+                let year = birthYear + finalAge;
+                let month = birthMonth;
+                if (month > 12) {
+                    year += 1;
+                    month -= 12;
+                }
+                return { delayedYear: year, delayedMonth: month };
+            } else {
+                // 渐进式延迟计算
+                const triggerYearDiff = birthYear + baseAge - BASE_YEAR;
+                const triggerTotalMonths = triggerYearDiff * 12 + birthMonth;
+                const delayMonths = Math.ceil(triggerTotalMonths / delayRate); // 向上取整
+                const totalMonths = baseAge * 12 + delayMonths;
+                
+                const years = Math.floor(totalMonths / 12);
+                const months = totalMonths % 12;
+                let year = birthYear + years;
+                let month = birthMonth + months;
+                
+                if (month > 12) {
+                    year += 1;
+                    month -= 12;
+                }
+                return { delayedYear: year, delayedMonth: month };
+            }
+        }
+
+        // 5. 辅助函数
+        function resetResults() {
+            Object.values(resultEls).forEach(el => el.textContent = '-');
+        }
+
+        // 6. 绑定事件监听
+        // 身份证输入监听
+        idCardInput.addEventListener('input', (e) => {
+            const value = e.target.value.trim();
+            if (value.length === 15 || value.length === 18) {
+                parseIdCard(value);
+            } else if (value.length === 0) {
+                idCardError.style.display = 'none';
+                idCardInput.style.borderColor = '#bdc3c7';
+                resetResults();
+            } else {
+                idCardError.style.display = 'block';
+                idCardInput.style.borderColor = '#e74c3c';
+                resetResults();
+            }
+        });
+
+        // 女干部选择监听（身份证模式）
+        document.querySelectorAll('input[name="idCadre"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (idCardInput.value.trim()) {
+                    parseIdCard(idCardInput.value.trim());
+                }
+            });
+        });
+
+        // 手动输入区监听
+        manualBirthDate.addEventListener('change', calculateFromManualInput);
+        document.querySelectorAll('input[name="manualGender"]').forEach(radio => {
+            radio.addEventListener('change', calculateFromManualInput);
+        });
+        document.querySelectorAll('input[name="manualCadre"]').forEach(radio => {
+            radio.addEventListener('change', calculateFromManualInput);
+        });
+
+        // 7. 初始化：设置默认日期（1980年1月）
+        manualBirthDate.value = '1980-01-01';
+        calculateFromManualInput();
+    </script>
+</body>
+</html>

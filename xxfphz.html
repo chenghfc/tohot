@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>销项发票汇总统计</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./fontawesome-free-5.15.4/css/all.min.css">
+    <script src="./js/xlsx.full.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e40af',
+                        secondary: '#3b82f6',
+                        accent: '#60a5fa',
+                        neutral: '#f3f4f6',
+                        dark: '#1e293b'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .shadow-custom {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .transition-custom {
+                transition: all 0.3s ease;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-primary text-white shadow-md">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa fa-file-text-o text-2xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold">销项发票汇总统计</h1>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- 主要内容区 -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- 上传区域 -->
+        <section id="upload-section" class="bg-white rounded-xl shadow-custom p-6 mb-8 transition-custom">
+            <div class="flex items-center mb-6">
+                <div class="bg-secondary/10 p-3 rounded-lg mr-4">
+                    <i class="fa fa-upload text-secondary text-xl"></i>
+                </div>
+                <h2 class="text-xl font-semibold text-gray-800">上传发票数据表格</h2>
+            </div>
+            
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-custom hover:border-secondary" id="drop-area">
+                <i class="fa fa-file-excel-o text-4xl text-gray-400 mb-4"></i>
+                <p class="text-gray-600 mb-4">电子税务局全量发票查询里导出表格，点击下方按钮上传</p>
+                
+                <div class="flex justify-center">
+                    <label class="bg-secondary text-white px-6 py-3 rounded-lg cursor-pointer transition-custom hover:bg-primary flex items-center justify-center">
+                        <i class="fa fa-folder-open mr-2"></i>选择文件
+                        <input type="file" id="file-input" accept=".xlsx, .xls" class="hidden">
+                    </label>
+                </div>
+                
+            </div>
+            
+            <!-- 上传进度 -->
+            <div id="progress-container" class="hidden mt-6">
+                <div class="flex justify-between mb-2">
+                    <span class="text-sm font-medium" id="progress-text">正在处理文件...</span>
+                    <span class="text-sm text-gray-500" id="progress-percent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progress-bar" class="bg-secondary h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <!-- 处理结果提示 -->
+            <div id="result-alert" class="hidden mt-6 p-4 rounded-lg flex items-center">
+                <i id="result-icon" class="fa mr-2"></i>
+                <span id="result-message"></span>
+            </div>
+        </section>
+
+        <!-- 汇总结果区域 -->
+        <section id="summary-section" class="bg-white rounded-xl shadow-custom p-6 hidden transition-custom">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center">
+                    <div class="bg-primary/10 p-3 rounded-lg mr-4">
+                        <i class="fa fa-bar-chart text-primary text-xl"></i>
+                    </div>
+                    <h2 class="text-xl font-semibold text-gray-800">销项发票数据汇总结果</h2>
+                </div>
+            </div>
+            
+            <!-- 汇总统计信息 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <div class="text-sm text-blue-500 mb-1">总金额</div>
+                    <div class="text-2xl font-bold text-blue-800" id="total-amount">¥0.00</div>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                    <div class="text-sm text-purple-500 mb-1">总税额</div>
+                    <div class="text-2xl font-bold text-purple-800" id="total-tax">¥0.00</div>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+                    <div class="text-sm text-green-500 mb-1">统计月份</div>
+                    <div class="text-2xl font-bold text-green-800" id="month-count">0 个</div>
+                </div>
+            </div>
+            
+            <!-- 月度汇总表格 -->
+            <div id="monthly-summaries" class="space-y-8">
+                <!-- 月度汇总内容将通过JS动态生成 -->
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <p class="text-sm text-gray-400">数据处理结果仅供参考</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 全局变量
+        let excelData = null;
+        let summaryData = null;
+        let作废发票数量 = 0; // 新增：统计作废发票数量
+        
+        // DOM元素
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const progressPercent = document.getElementById('progress-percent');
+        const resultAlert = document.getElementById('result-alert');
+        const resultIcon = document.getElementById('result-icon');
+        const resultMessage = document.getElementById('result-message');
+        const summarySection = document.getElementById('summary-section');
+        const totalAmount = document.getElementById('total-amount');
+        const totalTax = document.getElementById('total-tax');
+        const monthCount = document.getElementById('month-count');
+        const monthlySummaries = document.getElementById('monthly-summaries');
+        
+        // 发票分类定义
+        const INVOICE_CATEGORIES = {
+            '专用发票': [
+                '数电发票（增值税专用发票）',
+                '数电票（增值税专用发票）',
+                '数电发票（机动车销售统一发票）',
+                '数电纸质发票（增值税专用发票）',
+                '数电纸质发票（机动车销售统一发票）',
+                '增值税电子专用发票',
+                '增值税专用发票',
+                '机动车销售统一发票'
+            ],
+            '普通发票': [
+                '数电发票（普通发票）',
+                '数电票（普通发票）',
+                '数电纸质发票（普通发票）',
+                '增值税电子普通发票',
+                '增值税普通发票',
+                '增值税普通发票（卷式）',
+                '道路通行费电子普通发票',
+                '数电发票（航空运输电子客票行程单）',
+                '数电发票（铁路电子客票）',
+                '数电发票（通行费发票）'
+            ],
+            '二手车发票': [
+                '数电发票（二手车销售统一发票）',
+                '数电纸质发票（二手车销售统一发票）',
+                '二手车销售统一发票'
+            ]
+        };
+        
+        // 标准税率顺序
+        const STANDARD_TAX_RATES = ['13%', '9%', '6%', '5%', '3%', '1%', '0%', '免税', '不征税', '其他'];
+        
+        // 初始化拖拽功能
+        function initDragAndDrop() {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+                document.body.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            function highlight() {
+                dropArea.classList.add('border-secondary');
+                dropArea.classList.add('bg-blue-50');
+            }
+            
+            function unhighlight() {
+                dropArea.classList.remove('border-secondary');
+                dropArea.classList.remove('bg-blue-50');
+            }
+            
+            dropArea.addEventListener('drop', handleDrop, false);
+            
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                
+                if (files.length) {
+                    handleFiles(files);
+                }
+            }
+        }
+        
+        // 处理文件选择
+        fileInput.addEventListener('change', function() {
+            if (this.files.length) {
+                handleFiles(this.files);
+            }
+        });
+        
+        // 处理文件
+        function handleFiles(files) {
+            const file = files[0];
+            
+            // 验证文件类型
+            if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                showResult('error', '请上传Excel格式的文件（.xlsx 或 .xls）');
+                return;
+            }
+            
+            // 重置作废发票数量
+            作废发票数量 = 0;
+            
+            // 显示进度条
+            showProgress();
+            
+            // 读取文件
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    // 模拟进度
+                    updateProgress(30, '正在解析Excel文件...');
+                    
+                    // 解析Excel文件
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 获取第一个工作表
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 转换为JSON
+                    excelData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    // 验证数据结构
+                    updateProgress(60, '正在验证数据结构...');
+                    const requiredColumns = ['开票日期', '货物或应税劳务名称', '金额', '税率', '税额', '发票票种', '发票状态'];
+                    const actualColumns = Object.keys(excelData[0] || {});
+                    
+                    const missingColumns = requiredColumns.filter(col => !actualColumns.includes(col));
+                    
+                    if (missingColumns.length > 0) {
+                        throw new Error(`数据缺少必要列：${missingColumns.join('、')}`);
+                    }
+                    
+                    // 直接处理数据汇总，跳过预览步骤
+                    updateProgress(80, '正在汇总数据...');
+                    summaryData = processInvoiceData(excelData);
+                    
+                    // 显示汇总结果
+                    showSummaryResult();
+                    
+                    // 完成处理
+                    updateProgress(100, '文件解析与汇总完成');
+                    
+                    // 显示结果信息，包含作废发票数量
+                    let resultMsg = `成功解析并汇总文件：${file.name}，共 ${excelData.length} 条数据`;
+                    if (作废发票数量 > 0) {
+                        resultMsg += `，其中 ${作废发票数量} 条为已作废发票，未参与统计`;
+                    }
+                    showResult('success', resultMsg);
+                    
+                } catch (error) {
+                    console.error('文件处理错误:', error);
+                    updateProgress(0, '处理失败');
+                    showResult('error', `文件处理失败：${error.message}`);
+                }
+            };
+            
+            reader.onerror = function() {
+                updateProgress(0, '读取失败');
+                showResult('error', '文件读取失败，请重试');
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 显示进度条
+        function showProgress() {
+            progressContainer.classList.remove('hidden');
+            updateProgress(0, '开始处理文件...');
+        }
+        
+        // 更新进度
+        function updateProgress(percent, text) {
+            progressBar.style.width = `${percent}%`;
+            progressPercent.textContent = `${percent}%`;
+            progressText.textContent = text;
+        }
+        
+        // 显示结果提示
+        function showResult(type, message) {
+            resultAlert.classList.remove('hidden');
+            resultAlert.className = 'mt-6 p-4 rounded-lg flex items-center';
+            
+            if (type === 'success') {
+                resultAlert.classList.add('bg-green-50', 'border', 'border-green-200', 'text-green-800');
+                resultIcon.className = 'fa fa-check-circle text-green-500 mr-2';
+            } else if (type === 'error') {
+                resultAlert.classList.add('bg-red-50', 'border', 'border-red-200', 'text-red-800');
+                resultIcon.className = 'fa fa-exclamation-circle text-red-500 mr-2';
+            } else if (type === 'warning') {
+                resultAlert.classList.add('bg-yellow-50', 'border', 'border-yellow-200', 'text-yellow-800');
+                resultIcon.className = 'fa fa-exclamation-triangle text-yellow-500 mr-2';
+            }
+            
+            resultMessage.textContent = message;
+        }
+        
+        // 处理数据汇总
+        function processInvoiceData(data) {
+            // 复制数据
+            const processedData = JSON.parse(JSON.stringify(data));
+            
+            // 初始化汇总结构
+            const summary = {};
+            
+            // 处理每条数据
+            processedData.forEach(row => {
+                        // 检查货物或应税劳务名称是否为"(详见销货清单)"，如果是则跳过
+        if (row["货物或应税劳务名称"] === "(详见销货清单)") {
+            return false; // 过滤掉此行
+        }
+                
+                // 检查发票状态，如果是"已作废"则不统计
+                if (row.发票状态 && row.发票状态.trim() === '已作废') {
+                    作废发票数量++;
+                    return; // 跳过当前行的统计
+                }
+                
+                // 转换数值类型
+                row.金额 = parseFloat(row.金额) || 0;
+                row.税额 = parseFloat(row.税额) || 0;
+                
+                // 处理日期
+                const date = new Date(row.开票日期);
+                if (!isNaN(date.getTime())) {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    row.年月 = `${year}年${month}月`;
+                } else {
+                    row.年月 = '未知年月';
+                }
+                
+                // 分类发票类型
+                row.发票类别 = categorizeInvoiceType(row.发票票种);
+                
+                // 标准化税率
+                row.标准税率 = standardizeTaxRate(row.税率);
+                
+                // 汇总数据
+                const yearMonth = row.年月;
+                const category = row.发票类别;
+                const taxRate = row.标准税率;
+                const amount = row.金额;
+                const tax = row.税额;
+                
+                // 初始化结构
+                if (!summary[yearMonth]) {
+                    summary[yearMonth] = initMonthlyData();
+                }
+                
+                // 累加数据
+                summary[yearMonth][category][taxRate].金额 += amount;
+                summary[yearMonth][category][taxRate].税额 += tax;
+            });
+            
+            // 四舍五入保留2位小数
+            for (const yearMonth in summary) {
+                for (const category in summary[yearMonth]) {
+                    for (const taxRate in summary[yearMonth][category]) {
+                        summary[yearMonth][category][taxRate].金额 = Math.round(summary[yearMonth][category][taxRate].金额 * 100) / 100;
+                        summary[yearMonth][category][taxRate].税额 = Math.round(summary[yearMonth][category][taxRate].税额 * 100) / 100;
+                    }
+                }
+            }
+            
+            return summary;
+        }
+        
+        // 初始化月度数据结构
+        function initMonthlyData() {
+            const defaultRates = {};
+            STANDARD_TAX_RATES.forEach(rate => {
+                defaultRates[rate] = { 金额: 0, 税额: 0 };
+            });
+            
+            return {
+                '专用发票': JSON.parse(JSON.stringify(defaultRates)),
+                '普通发票': JSON.parse(JSON.stringify(defaultRates)),
+                '二手车发票': JSON.parse(JSON.stringify(defaultRates))
+            };
+        }
+        
+        // 分类发票类型
+        function categorizeInvoiceType(invoiceType) {
+            for (const [category, types] of Object.entries(INVOICE_CATEGORIES)) {
+                if (types.includes(invoiceType)) {
+                    return category;
+                }
+            }
+            return '普通发票'; // 默认归类为普通发票
+        }
+        
+        // 标准化税率
+        function standardizeTaxRate(taxRate) {
+            if (!taxRate || taxRate === '') {
+                return '其他';
+            }
+            
+            const taxRateStr = String(taxRate).trim();
+            
+            // 处理百分比格式
+            if (taxRateStr.endsWith('%') && /^\d+(\.\d+)?%$/.test(taxRateStr)) {
+                const numPart = taxRateStr.slice(0, -1);
+                const num = parseFloat(numPart);
+                
+                // 检查是否为标准税率
+                if (['13', '9', '6', '5', '3', '1', '0'].includes(numPart)) {
+                    return `${numPart}%`;
+                }
+                
+                return '其他';
+            }
+            
+            // 处理小数格式
+            if (!isNaN(parseFloat(taxRateStr))) {
+                const num = parseFloat(taxRateStr);
+                if (num >= 0 && num <= 1) {
+                    const percent = Math.round(num * 100);
+                    if ([13, 9, 6, 5, 3, 1, 0].includes(percent)) {
+                        return `${percent}%`;
+                    }
+                    return '其他';
+                } else if (num > 1 && num <= 100) {
+                    const percent = Math.round(num);
+                    if ([13, 9, 6, 5, 3, 1, 0].includes(percent)) {
+                        return `${percent}%`;
+                    }
+                    return '其他';
+                }
+            }
+            
+            // 处理特殊税率
+            if (taxRateStr === '免税' || taxRateStr === '不征税') {
+                return taxRateStr;
+            }
+            
+            // 其他情况
+            return '其他';
+        }
+        
+        // 显示汇总结果
+        function showSummaryResult() {
+            if (!summaryData) {
+                showResult('warning', '没有汇总数据可显示');
+                return;
+            }
+            
+            // 显示汇总区域
+            summarySection.classList.remove('hidden');
+            
+            // 计算总计
+            let totalAmt = 0;
+            let totalTx = 0;
+            const months = Object.keys(summaryData);
+            
+            for (const month of months) {
+                for (const category of ['专用发票', '普通发票', '二手车发票']) {
+                    for (const rate of STANDARD_TAX_RATES) {
+                        totalAmt += summaryData[month][category][rate].金额;
+                        totalTx += summaryData[month][category][rate].税额;
+                    }
+                }
+            }
+            
+            // 更新总计信息
+            totalAmount.textContent = `¥${formatNumber(totalAmt)}`;
+            totalTax.textContent = `¥${formatNumber(totalTx)}`;
+            monthCount.textContent = `${months.length} 个`;
+            
+            // 清空月度汇总区域
+            monthlySummaries.innerHTML = '';
+            
+            // 按年月倒序排列
+            const sortedMonths = [...months].sort((a, b) => {
+                const dateA = new Date(a.replace('年', '-').replace('月', '-01'));
+                const dateB = new Date(b.replace('年', '-').replace('月', '-01'));
+                return dateB - dateA;
+            });
+            
+            // 生成月度汇总表格
+            sortedMonths.forEach(month => {
+                const monthData = summaryData[month];
+                
+                // 计算月度总计
+                const monthTotals = {
+                    '专用发票': { 金额: 0, 税额: 0 },
+                    '普通发票': { 金额: 0, 税额: 0 },
+                    '二手车发票': { 金额: 0, 税额: 0 }
+                };
+                
+                for (const category of ['专用发票', '普通发票', '二手车发票']) {
+                    for (const rate of STANDARD_TAX_RATES) {
+                        monthTotals[category].金额 += monthData[category][rate].金额;
+                        monthTotals[category].税额 += monthData[category][rate].税额;
+                    }
+                }
+                
+                // 创建月度汇总卡片
+                const monthCard = document.createElement('div');
+                monthCard.className = 'bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden';
+                
+                // 卡片标题
+                const cardHeader = document.createElement('div');
+                cardHeader.className = 'bg-primary text-white px-6 py-4';
+                cardHeader.innerHTML = `<h3 class="text-lg font-semibold">${month}</h3>`;
+                
+                // 卡片内容（表格）
+                const cardBody = document.createElement('div');
+                cardBody.className = 'p-4 overflow-x-auto';
+                
+                // 创建表格
+                const table = document.createElement('table');
+                table.className = 'min-w-full divide-y divide-gray-200';
+                
+                // 表格头部
+                const thead = document.createElement('thead');
+                thead.className = 'bg-gray-50';
+                
+                const headerRow1 = document.createElement('tr');
+                headerRow1.innerHTML = `
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">税率</th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" colspan="2">专用发票</th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" colspan="2">普通发票</th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" colspan="2">二手车发票</th>
+                `;
+                
+                const headerRow2 = document.createElement('tr');
+                headerRow2.innerHTML = `
+                    <th scope="col" class="px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                    <th scope="col" class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">金额（元）</th>
+                    <th scope="col" class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">税额（元）</th>
+                    <th scope="col" class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">金额（元）</th>
+                    <th scope="col" class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">税额（元）</th>
+                    <th scope="col" class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">金额（元）</th>
+                    <th scope="col" class="px-6 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">税额（元）</th>
+                `;
+                
+                thead.appendChild(headerRow1);
+                thead.appendChild(headerRow2);
+                
+                // 表格内容
+                const tbody = document.createElement('tbody');
+                tbody.className = 'bg-white divide-y divide-gray-200';
+                
+                // 添加各税率行
+                let hasData = false;
+                STANDARD_TAX_RATES.forEach(rate => {
+                    const zyAmount = monthData['专用发票'][rate].金额;
+                    const zyTax = monthData['专用发票'][rate].税额;
+                    const ptAmount = monthData['普通发票'][rate].金额;
+                    const ptTax = monthData['普通发票'][rate].税额;
+                    const escAmount = monthData['二手车发票'][rate].金额;
+                    const escTax = monthData['二手车发票'][rate].税额;
+                    
+                    if (zyAmount > 0 || zyTax > 0 || ptAmount > 0 || ptTax > 0 || escAmount > 0 || escTax > 0) {
+                        hasData = true;
+                        
+                        const row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-50';
+                        
+                        row.innerHTML = `
+                            <td class="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${rate}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 text-right">${formatNumber(zyAmount)}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 text-right">${formatNumber(zyTax)}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 text-right">${formatNumber(ptAmount)}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 text-right">${formatNumber(ptTax)}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 text-right">${formatNumber(escAmount)}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 text-right">${formatNumber(escTax)}</td>
+                        `;
+                        
+                        tbody.appendChild(row);
+                    }
+                });
+                
+                // 如果没有数据，显示提示行
+                if (!hasData) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `
+                        <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">
+                            该月份没有符合条件的数据
+                        </td>
+                    `;
+                    tbody.appendChild(emptyRow);
+                }
+                
+                // 添加总计行
+                const totalRow = document.createElement('tr');
+                totalRow.className = 'bg-gray-50 font-semibold';
+                totalRow.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">合计</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${formatNumber(monthTotals['专用发票'].金额)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${formatNumber(monthTotals['专用发票'].税额)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${formatNumber(monthTotals['普通发票'].金额)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${formatNumber(monthTotals['普通发票'].税额)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${formatNumber(monthTotals['二手车发票'].金额)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${formatNumber(monthTotals['二手车发票'].税额)}</td>
+                `;
+                tbody.appendChild(totalRow);
+                
+                // 组装表格
+                table.appendChild(thead);
+                table.appendChild(tbody);
+                
+                // 组装卡片
+                cardBody.appendChild(table);
+                monthCard.appendChild(cardHeader);
+                monthCard.appendChild(cardBody);
+                
+                // 添加到页面
+                monthlySummaries.appendChild(monthCard);
+            });
+        }
+        
+        // 格式化数字为两位小数
+        function formatNumber(num) {
+            return num.toFixed(2);
+        }
+        
+        // 初始化
+        window.addEventListener('DOMContentLoaded', function() {
+            initDragAndDrop();
+        });
+    </script>
+</body>
+</html>

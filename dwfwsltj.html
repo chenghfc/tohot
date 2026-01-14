@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单位服务数量统计</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        
+        body {
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 0 20px;
+            background-color: #f5f7fa;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 6px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-area:hover {
+            border-color: #409eff;
+            background-color: #f8f9fa;
+        }
+        
+        .upload-area.active {
+            border-color: #67c23a;
+            background-color: #f0f9eb;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .upload-text {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .result-area {
+            display: none;
+            margin-top: 30px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 12px 15px;
+            text-align: center;
+        }
+        
+        th {
+            background-color: #e9ecef;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        td {
+            font-size: 16px;
+            color: #555;
+        }
+        
+        .success-message {
+            color: #67c23a;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        .error-message {
+            color: #f56c6c;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>单位服务数量统计</h1>
+        
+        <!-- 文件上传区域 -->
+        <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+            <div class="upload-text">
+                <p>点击或拖拽文件到此处上传</p>
+                <p style="margin-top: 10px; font-size: 14px; color: #999;">支持格式：Excel (.xlsx, .xls)、CSV (.csv)</p>
+            </div>
+        </div>
+        
+        <!-- 错误提示 -->
+        <div class="error-message" id="errorMessage"></div>
+        
+        <!-- 统计结果区域 -->
+        <div class="result-area" id="resultArea">
+            <div class="success-message">统计完成！</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>服务单位数量</th>
+                        <th>1次服务</th>
+                        <th>2次服务</th>
+                        <th>3次服务</th>
+                        <th>4次服务</th>
+                        <th>5次服务</th>
+                        <th>6次及以上</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td id="totalUnits">-</td>
+                        <td id="count1">-</td>
+                        <td id="count2">-</td>
+                        <td id="count3">-</td>
+                        <td id="count4">-</td>
+                        <td id="count5">-</td>
+                        <td id="count6Plus">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 引入SheetJS库 -->
+    <script src="./js/xlsx.full.min.js"></script>
+    <script>
+        // 获取DOM元素
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const resultArea = document.getElementById('resultArea');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        // 上传区域点击事件
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // 拖拽事件处理
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('active');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFile(fileInput.files[0]);
+            }
+        });
+        
+        // 文件选择事件
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+        
+        /**
+         * 处理上传的文件
+         * @param {File} file 上传的文件对象
+         */
+        function handleFile(file) {
+            // 清空之前的错误提示
+            errorMessage.textContent = '';
+            
+            // 检查文件类型
+            const fileTypes = [
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-excel',
+                'text/csv'
+            ];
+            
+            if (!fileTypes.includes(file.type) && 
+                !file.name.endsWith('.xlsx') && 
+                !file.name.endsWith('.xls') && 
+                !file.name.endsWith('.csv')) {
+                errorMessage.textContent = '请上传Excel(.xlsx/.xls)或CSV(.csv)格式的文件！';
+                return;
+            }
+            
+            // 读取文件
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    // 解析Excel/CSV文件
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 获取第一个工作表
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 转换为JSON格式
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    // 检查数据是否为空
+                    if (jsonData.length === 0) {
+                        errorMessage.textContent = '表格中没有数据，请检查文件！';
+                        return;
+                    }
+                    
+                    // 检查是否有"服务对象"列
+                    const firstRow = jsonData[0];
+                    let serviceObjKey = null;
+                    for (const key in firstRow) {
+                        if (key.includes('服务对象')) {
+                            serviceObjKey = key;
+                            break;
+                        }
+                    }
+                    
+                    if (!serviceObjKey) {
+                        errorMessage.textContent = '表格中未找到"服务对象"列，请检查列名！';
+                        return;
+                    }
+                    
+                    // 统计服务对象出现次数
+                    const serviceCount = {};
+                    jsonData.forEach(row => {
+                        const serviceObj = row[serviceObjKey];
+                        if (serviceObj && serviceObj.toString().trim() !== '') {
+                            const objStr = serviceObj.toString().trim();
+                            serviceCount[objStr] = (serviceCount[objStr] || 0) + 1;
+                        }
+                    });
+                    
+                    // 计算统计结果
+                    const stats = {
+                        totalUnits: Object.keys(serviceCount).length,
+                        count1: 0,
+                        count2: 0,
+                        count3: 0,
+                        count4: 0,
+                        count5: 0,
+                        count6Plus: 0
+                    };
+                    
+                    // 遍历统计结果
+                    Object.values(serviceCount).forEach(count => {
+                        if (count === 1) stats.count1++;
+                        else if (count === 2) stats.count2++;
+                        else if (count === 3) stats.count3++;
+                        else if (count === 4) stats.count4++;
+                        else if (count === 5) stats.count5++;
+                        else if (count >= 6) stats.count6Plus++;
+                    });
+                    
+                    // 显示统计结果
+                    displayResults(stats);
+                    
+                } catch (err) {
+                    console.error('解析文件出错：', err);
+                    errorMessage.textContent = '文件解析失败，请检查文件格式是否正确！';
+                }
+            };
+            
+            reader.onerror = function() {
+                errorMessage.textContent = '文件读取失败，请重试！';
+            };
+            
+            // 读取文件为ArrayBuffer
+            reader.readAsArrayBuffer(file);
+        }
+        
+        /**
+         * 显示统计结果
+         * @param {Object} stats 统计数据对象
+         */
+        function displayResults(stats) {
+            // 更新表格数据
+            document.getElementById('totalUnits').textContent = stats.totalUnits;
+            document.getElementById('count1').textContent = stats.count1;
+            document.getElementById('count2').textContent = stats.count2;
+            document.getElementById('count3').textContent = stats.count3;
+            document.getElementById('count4').textContent = stats.count4;
+            document.getElementById('count5').textContent = stats.count5;
+            document.getElementById('count6Plus').textContent = stats.count6Plus;
+            
+            // 显示结果区域
+            resultArea.style.display = 'block';
+            
+            // 滚动到结果区域
+            resultArea.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
