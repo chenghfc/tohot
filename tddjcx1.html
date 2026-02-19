@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>常州市土地等级查询系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: "Microsoft Yahei", sans-serif;
+            background-color: #f5f7fa;
+        }
+        
+        /* 搜索栏样式 */
+        .search-container {
+            padding: 15px 20px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus {
+            border-color: #409eff;
+        }
+        .search-btn {
+            padding: 10px 20px;
+            background: #409eff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        .search-btn:hover {
+            background: #2d8cf0;
+        }
+        
+        /* 搜索结果面板 */
+        .search-results {
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            width: 300px;
+            max-height: 400px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            overflow-y: auto;
+            display: none;
+        }
+        .result-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .result-item:hover {
+            background: #f5f7fa;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .result-address {
+            font-size: 12px;
+            color: #666;
+        }
+        .result-pagination {
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            background: #f9f9f9;
+            border-top: 1px solid #e0e0e0;
+        }
+        .page-btn {
+            padding: 5px 10px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .page-btn:hover {
+            background: #e0e0e0;
+        }
+        .page-info {
+            font-size: 12px;
+            color: #666;
+            line-height: 24px;
+        }
+
+        #map-container {
+            width: 100%;
+            height: 75vh;
+            border: 1px solid #e0e0e0;
+            background: #f5f5f5;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .info-panel {
+            padding: 15px 20px;
+            font-size: 14px;
+            color: #333;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            min-height: 120px;
+        }
+        .info-panel strong {
+            color: #1e5799;
+        }
+        .level-legend {
+            position: absolute;
+            top: 120px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 12px;
+            z-index: 9999;
+            max-height: 70vh;
+            overflow-y: auto;
+            width: 220px;
+        }
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #1e5799;
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        .color-block {
+            width: 16px;
+            height: 16px;
+            margin-right: 10px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+            flex-shrink: 0;
+        }
+        .copy-btn {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #409eff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .copy-btn:hover {
+            background: #2d8cf0;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .copy-btn:active {
+            transform: translateY(0);
+        }
+        .copy-toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 9999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 16px;
+            color: #666;
+        }
+        .loading::after {
+            content: "";
+            width: 20px;
+            height: 20px;
+            margin-left: 10px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #409eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .legend-section {
+            margin-bottom: 15px;
+        }
+        .legend-section:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- 搜索栏 -->
+    <div class="search-container">
+        <input type="text" class="search-input" id="searchInput" placeholder="输入地点名称进行搜索...">
+        <button class="search-btn" id="searchBtn">搜索</button>
+    </div>
+    
+    <!-- 搜索结果面板 -->
+    <div class="search-results" id="searchResults">
+        <div id="resultsList"></div>
+        <div class="result-pagination" id="pagination">
+            <button class="page-btn" id="firstPage">首页</button>
+            <button class="page-btn" id="prevPage">上一页</button>
+            <span class="page-info" id="pageInfo">第1页/共1页</span>
+            <button class="page-btn" id="nextPage">下一页</button>
+            <button class="page-btn" id="lastPage">末页</button>
+        </div>
+    </div>
+    
+    <div id="map-container">
+        <div class="loading">地图加载中...</div>
+    </div>
+    
+    <div class="info-panel" id="info-panel">
+        请点击地图查看土地等级信息，查询结果可能存在偏差，仅供参考
+    </div>
+    
+    <div class="copy-toast" id="copyToast">坐标复制成功！</div>
+    
+    <!-- 土地等级图例 -->
+    <div class="level-legend">
+        
+
+            <div class="legend-item">
+                <div class="color-block" style="background: #FF0000;"></div>
+                <span>大城市一等（18元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #FFA500;"></div>
+                <span>大城市二等（14元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #FFFF00;"></div>
+                <span>大城市三等（10元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #008000;"></div>
+                <span>大城市四等（8元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #00FFFF;"></div>
+                <span>大城市五等（6元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #0000FF;"></div>
+                <span>大城市六等（4元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #800080;"></div>
+                <span>大城市七等（1.5元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #FF0000;"></div>
+                <span>溧阳小城市一等（10元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #FFA500;"></div>
+                <span>溧阳小城市二等（8元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #FFFF00;"></div>
+                <span>溧阳小城市三等（6元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #008000;"></div>
+                <span>溧阳小城市四等（2.5元/㎡）</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-block" style="background: #00FFFF;"></div>
+                <span>溧阳小城市五等（0.9元/㎡）</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 天地图API -->
+    <script src="https://api.tianditu.gov.cn/api?v=4.0&tk=98e41f7533f3261919469bb24d2021ad"></script>
+    
+    <!-- 核心地图功能 -->
+    <script src="js/mapCore.js"></script>
+    
+    <!-- 行政区划数据 -->
+    <script src="js/districts/tianning.js"></script>
+    <script src="js/districts/zhonglou.js"></script>
+    <script src="js/districts/xinbei.js"></script>
+    <script src="js/districts/wujin.js"></script>
+    <script src="js/districts/jintan.js"></script>
+    <script src="js/districts/liyang.js"></script>
+    <script src="js/districts/test.js"></script>
+    <!-- 土地等级数据 -->
+    <script src="js/levels/level1.js"></script>
+    <script src="js/levels/level2.js"></script>
+    <script src="js/levels/level3.js"></script>
+    <script src="js/levels/level4.js"></script>
+    <script src="js/levels/level5.js"></script>
+    <script src="js/levels/level6.js"></script>
+    <script src="js/levels/level7.js"></script>
+    <script src="js/levels/liyangLevel1.js"></script>
+    <script src="js/levels/liyangLevel2.js"></script>
+    <script src="js/levels/liyangLevel3.js"></script>
+    <script src="js/levels/liyangLevel4.js"></script>
+    <script src="js/levels/liyangLevel5.js"></script>
+    
+
+</body>
+</html>
