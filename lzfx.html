@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日流转分析工具</title>
+    <script src="./js/xlsx.full.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            padding: 30px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 25px;
+            color: #333;
+        }
+
+        /* 上传区域 */
+        .upload-box {
+            border: 2px dashed #999;
+            padding: 45px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            background: white;
+            margin-bottom: 25px;
+        }
+
+        .upload-box:hover {
+            border-color: #007bff;
+            background-color: #f0f7ff;
+        }
+
+        .upload-box h5 {
+            margin-bottom: 8px;
+            color: #444;
+        }
+
+        .upload-box p {
+            color: #777;
+        }
+
+        /* 结果区域 */
+        .result-box {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .result-box h4 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .item {
+            background: #f8f9fa;
+            padding: 18px;
+            border-radius: 6px;
+        }
+
+        .item h5 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .num {
+            font-size: 22px;
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>每日流转分析工具</h2>
+
+    <!-- 上传 -->
+    <div class="upload-box" id="uploadArea">
+        <input type="file" id="fileInput" accept=".xls,.xlsx" hidden>
+        <h5>点击或拖拽Excel文件到此处上传</h5>
+        <p>支持 .xls 和 .xlsx 格式</p>
+    </div>
+
+    <!-- 结果 -->
+    <div class="result-box" id="resultArea">
+        <h4>📊 分析结果</h4>
+        <div class="result-grid">
+            <div class="item">
+                <h5>服务数量</h5>
+                <div class="num" id="serviceCount">0</div>
+            </div>
+            <div class="item">
+                <h5>后台数量</h5>
+                <div class="num" id="backendCount">0</div>
+            </div>
+            <div class="item">
+                <h5>平均受理时间</h5>
+                <div class="num" id="avgTime">00:00:00</div>
+            </div>
+            <div class="item">
+                <h5>超时数量</h5>
+                <div class="num" id="timeoutCount">0</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const resultArea = document.getElementById('resultArea');
+
+            uploadArea.onclick = () => fileInput.click();
+
+            // 拖拽
+            uploadArea.ondragover = (e) => e.preventDefault();
+            uploadArea.ondrop = (e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files.length) {
+                    fileInput.files = e.dataTransfer.files;
+                    handleFile();
+                }
+            };
+
+            fileInput.onchange = handleFile;
+
+            function handleFile() {
+                const file = fileInput.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const wb = XLSX.read(data, { type: 'array' });
+                        const sheet = wb.Sheets[wb.SheetNames[0]];
+                        const json = XLSX.utils.sheet_to_json(sheet);
+                        analyze(json);
+                        resultArea.style.display = 'block';
+                    } catch (err) {
+                        alert('文件解析失败，请检查Excel格式！');
+                        console.error(err);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            // 核心分析
+            function analyze(data) {
+                let service = 0, backend = 0, totalSec = 0, valid = 0, timeout = 0;
+
+                data.forEach(row => {
+                    // 服务数量
+                    if (row['问题描述'] && String(row['问题描述']).trim() !== '') service++;
+
+                    // 后台数量 + 时间计算
+                    if (row['流转分库'] && String(row['流转分库']).trim() !== '') {
+                        backend++;
+
+                        const t1 = row['第一次流转时间'];
+                        const t2 = row['第一次流转受理时间'];
+                        if (t1 && t2) {
+                            const d1 = new Date(t1);
+                            const d2 = new Date(t2);
+                            if (!isNaN(d1) && !isNaN(d2)) {
+                                let sec = (d2 - d1) / 1000;
+                                if (sec < 0) sec = 0;
+                                totalSec += sec;
+                                valid++;
+
+                                if (sec > 1800 && sec < 43200) timeout++;
+                            }
+                        }
+                    }
+                });
+
+                // 平均时间
+                let avg = '00:00:00';
+                if (valid > 0) avg = formatTime(totalSec / valid);
+
+                document.getElementById('serviceCount').innerText = service;
+                document.getElementById('backendCount').innerText = backend;
+                document.getElementById('avgTime').innerText = avg;
+                document.getElementById('timeoutCount').innerText = timeout;
+            }
+
+            // 秒数转 hh:mm:ss
+            function formatTime(sec) {
+                const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+                const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+                const s = String(Math.floor(sec % 60)).padStart(2, '0');
+                return `${h}:${m}:${s}`;
+            }
+        });
+    </script>
+</body>
+</html>
