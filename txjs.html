@@ -176,20 +176,15 @@
     <div class="container">
         <h1>退休时间计算器</h1>
 
-        <!-- 输入模式切换 -->
         <div class="input-mode-tabs">
             <button class="tab-btn active" data-mode="id-card">身份证号输入</button>
             <button class="tab-btn" data-mode="manual">手动信息输入</button>
         </div>
 
-        <!-- 身份证号输入区 -->
         <div class="input-section active" id="id-card-section">
             <div class="input-label">身份证号码：</div>
-            <input type="text" id="idCardInput" class="input-control id-card-input" 
-                   placeholder="请输入15位或18位身份证号" maxlength="18">
-            
+            <input type="text" id="idCardInput" class="input-control id-card-input" placeholder="请输入15位或18位身份证号" maxlength="18">
             <div class="error-hint" id="idCardError">身份证号格式错误，请检查后重新输入</div>
-            
             <div class="input-label">是否女干部/管理岗：</div>
             <div class="radio-group">
                 <div class="radio-item">
@@ -203,11 +198,9 @@
             </div>
         </div>
 
-        <!-- 手动输入区 -->
         <div class="input-section" id="manual-section">
             <div class="input-label">出生日期：</div>
             <input type="date" id="manualBirthDate" class="input-control">
-
             <div class="input-label">性别：</div>
             <div class="radio-group">
                 <div class="radio-item">
@@ -219,7 +212,6 @@
                     <label for="manualFemale">女</label>
                 </div>
             </div>
-
             <div class="input-label">是否女干部/管理岗：</div>
             <div class="radio-group">
                 <div class="radio-item">
@@ -233,9 +225,8 @@
             </div>
         </div>
 
-        <!-- 结果展示区域 -->
         <div class="result-section">
-            <div class="result-title">退休计算结果（以2025年为基准）</div>
+            <div class="result-title">退休计算结果（以当前时间为基准）</div>
             <table class="result-table">
                 <thead>
                     <tr>
@@ -256,7 +247,7 @@
                         <td id="resDelayedRetire">-</td>
                     </tr>
                     <tr>
-                        <th>离退休剩余年限</th>
+                        <th>离退休剩余时间</th>
                         <td id="resYearsOriginal">-</td>
                         <td id="resYearsDelayed">-</td>
                     </tr>
@@ -264,13 +255,11 @@
             </table>
         </div>
 
-        <!-- 政策说明与解析提示 -->
         <div class="policy-note">
             <strong>1. 计算依据（2025年渐进式延迟退休政策）：</strong><br>
             - 男职工：原60岁，每4个月延迟1个月，1976年9月后出生直接63岁；<br>
             - 女工人岗：原50岁，每2个月延迟1个月，1984年11月后出生直接55岁；<br>
             - 女干部/管理岗：原55岁，每4个月延迟1个月，1981年9月后出生直接58岁。<br><br>
-            
             <strong>2. 身份证解析说明：</strong><br>
             - 18位身份证：第7-14位提取生日（YYYYMMDD），第17位判断性别（奇数男/偶数女）；<br>
             - 15位身份证：第7-12位提取生日（YYMMDD，补“19”前缀），第15位判断性别；<br>
@@ -279,8 +268,6 @@
     </div>
 
     <script>
-        // 全局常量与DOM元素
-        const BASE_YEAR = 2025;
         const tabBtns = document.querySelectorAll('.tab-btn');
         const inputSections = document.querySelectorAll('.input-section');
         const idCardInput = document.getElementById('idCardInput');
@@ -295,242 +282,147 @@
             yearsDelayed: document.getElementById('resYearsDelayed')
         };
 
-        // 1. 输入模式切换
+        function getNow() {
+            return new Date();
+        }
+
+        // 精确计算周岁
+        function getRealAge(birth) {
+            const now = getNow();
+            let age = now.getFullYear() - birth.getFullYear();
+            const m = now.getMonth() - birth.getMonth();
+            if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+            return Math.max(0, age);
+        }
+
+        // 计算剩余：年+月
+        function getRemainYMD(target) {
+            const now = getNow();
+            if (target <= now) return '已退休';
+            let y = target.getFullYear() - now.getFullYear();
+            let m = target.getMonth() - now.getMonth();
+            if (m < 0) {
+                y--;
+                m += 12;
+            }
+            return `${y}年${m}月`;
+        }
+
         tabBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const mode = btn.dataset.mode;
-                // 更新标签状态
                 tabBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                // 更新输入区显示
-                inputSections.forEach(section => section.classList.remove('active'));
+                inputSections.forEach(s => s.classList.remove('active'));
                 document.getElementById(`${mode}-section`).classList.add('active');
-                // 切换时触发计算（保留已有数据）
-                if (mode === 'id-card' && idCardInput.value.trim()) {
-                    parseIdCard(idCardInput.value.trim());
-                } else if (mode === 'manual' && manualBirthDate.value) {
-                    calculateFromManualInput();
-                }
+                if (mode === 'id-card' && idCardInput.value.trim()) parseIdCard(idCardInput.value.trim());
+                else if (mode === 'manual' && manualBirthDate.value) calculateFromManualInput();
             });
         });
 
-        // 2. 身份证解析核心函数
         function parseIdCard(idCard) {
-            idCard = idCard.replace(/\s/g, ''); // 去除空格
-            let birthStr = '';
-            let genderCode = '';
-            let isValid = true;
-
-            // 验证长度并提取信息
+            idCard = idCard.replace(/\s/g, '');
+            let birthStr = '', genderCode = '', valid = true;
             if (idCard.length === 18) {
-                birthStr = idCard.substring(6, 14); // YYYYMMDD
-                genderCode = idCard.substring(16, 17); // 第17位
+                birthStr = idCard.substring(6,14);
+                genderCode = idCard.substring(16,17);
             } else if (idCard.length === 15) {
-                birthStr = '19' + idCard.substring(6, 12); // 补19前缀→YYYYMMDD
-                genderCode = idCard.substring(14, 15); // 第15位
-            } else {
-                isValid = false;
-            }
+                birthStr = '19'+idCard.substring(6,12);
+                genderCode = idCard.substring(14,15);
+            } else valid = false;
 
-            // 验证生日格式
-            if (isValid) {
-                const year = parseInt(birthStr.substring(0, 4));
-                const month = parseInt(birthStr.substring(4, 6));
-                const day = parseInt(birthStr.substring(6, 8));
-                const birthDate = new Date(year, month - 1, day);
-                // 验证日期有效性
-                if (birthDate.getFullYear() !== year || 
-                    birthDate.getMonth() + 1 !== month || 
-                    birthDate.getDate() !== day ||
-                    year < 1900 || year > BASE_YEAR) {
-                    isValid = false;
+            if (valid) {
+                const y = +birthStr.slice(0,4), m = +birthStr.slice(4,6), d = +birthStr.slice(6,8);
+                const birth = new Date(y, m-1, d);
+                if (birth.getFullYear()!==y || birth.getMonth()+1!==m || birth.getDate()!==d || y<1900 || y>getNow().getFullYear()) {
+                    valid = false;
                 } else {
-                    // 填充到手动输入区（数据联动）
-                    manualBirthDate.value = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                    // 判断性别并填充
-                    const gender = parseInt(genderCode) % 2 === 1 ? 'male' : 'female';
-                    document.querySelector(`input[name="manualGender"][value="${gender}"]`).checked = true;
-                    // 同步女干部选择
-                    const isCadre = document.querySelector('input[name="idCadre"]:checked').value;
-                    document.querySelector(`input[name="manualCadre"][value="${isCadre}"]`).checked = true;
+                    manualBirthDate.value = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                    const g = +genderCode%2===1 ? 'male' : 'female';
+                    document.querySelector(`input[name="manualGender"][value="${g}"]`).checked = true;
+                    const c = document.querySelector('input[name="idCadre"]:checked').value;
+                    document.querySelector(`input[name="manualCadre"][value="${c}"]`).checked = true;
                 }
             }
-
-            // 处理结果
-            if (isValid) {
+            if (valid) {
                 idCardError.style.display = 'none';
                 idCardInput.style.borderColor = '#bdc3c7';
-                // 触发计算
-                const birthDate = new Date(manualBirthDate.value);
-                const gender = document.querySelector('input[name="manualGender"]:checked').value;
-                const isCadre = document.querySelector('input[name="idCadre"]:checked').value === 'yes';
-                calculateAndUpdate(birthDate, gender, isCadre);
+                calc(new Date(manualBirthDate.value), document.querySelector('input[name="manualGender"]:checked').value, document.querySelector('input[name="idCadre"]:checked').value==='yes');
             } else {
                 idCardError.style.display = 'block';
                 idCardInput.style.borderColor = '#e74c3c';
-                resetResults();
+                reset();
             }
         }
 
-        // 3. 手动输入计算
         function calculateFromManualInput() {
-            const birthDateStr = manualBirthDate.value;
-            if (!birthDateStr) {
-                resetResults();
-                return;
-            }
-            const birthDate = new Date(birthDateStr);
-            const gender = document.querySelector('input[name="manualGender"]:checked').value;
-            const isCadre = document.querySelector('input[name="manualCadre"]:checked').value === 'yes';
-            calculateAndUpdate(birthDate, gender, isCadre);
+            if (!manualBirthDate.value) return reset();
+            calc(new Date(manualBirthDate.value), document.querySelector('input[name="manualGender"]:checked').value, document.querySelector('input[name="manualCadre"]:checked').value==='yes');
         }
 
-        // 4. 退休计算核心逻辑
-        function calculateAndUpdate(birthDate, gender, isCadre) {
-            const birthYear = birthDate.getFullYear();
-            const birthMonth = birthDate.getMonth() + 1;
+        function calc(birth, gender, isCadre) {
+            const y = birth.getFullYear(), m = birth.getMonth()+1;
+            const age = getRealAge(birth);
+            const ori = getOriRetire(gender, isCadre, y, m);
+            const oriDate = new Date(ori.year, ori.month-1, birth.getDate());
+            const oriRemain = getRemainYMD(oriDate);
+            const delay = getDelayRetire(gender, isCadre, y, m);
+            const delayDate = new Date(delay.year, delay.month-1, birth.getDate());
+            const delayRemain = getRemainYMD(delayDate);
 
-            // 计算当前年龄
-            const currentAge = BASE_YEAR - birthYear;
-
-            // 计算原退休信息
-            const { originalYear, originalMonth } = getOriginalRetirement(gender, isCadre, birthYear, birthMonth);
-            const yearsOriginal = Math.max(0, originalYear - BASE_YEAR);
-
-            // 计算延迟退休信息
-            const { delayedYear, delayedMonth } = getDelayedRetirement(gender, isCadre, birthYear, birthMonth);
-            const yearsDelayed = Math.max(0, delayedYear - BASE_YEAR);
-
-            // 格式化显示
-            const formatMonth = (month) => month.toString().padStart(2, '0');
-            const originalRetireStr = `${originalYear}年${formatMonth(originalMonth)}月`;
-            const delayedRetireStr = `${delayedYear}年${formatMonth(delayedMonth)}月`;
-
-            // 更新结果
-            resultEls.currentAge.textContent = `${currentAge}岁`;
-            resultEls.currentAgeDelay.textContent = `${currentAge}岁`;
-            resultEls.originalRetire.textContent = originalRetireStr;
-            resultEls.delayedRetire.textContent = delayedRetireStr;
-            resultEls.yearsOriginal.textContent = `${yearsOriginal}年`;
-            resultEls.yearsDelayed.textContent = `${yearsDelayed}年`;
+            const fm = mon => String(mon).padStart(2,'0');
+            resultEls.currentAge.textContent = `${age}岁`;
+            resultEls.currentAgeDelay.textContent = `${age}岁`;
+            resultEls.originalRetire.textContent = `${ori.year}年${fm(ori.month)}月`;
+            resultEls.delayedRetire.textContent = `${delay.year}年${fm(delay.month)}月`;
+            resultEls.yearsOriginal.textContent = oriRemain;
+            resultEls.yearsDelayed.textContent = delayRemain;
         }
 
-        // 4.1 原退休时间计算
-        function getOriginalRetirement(gender, isCadre, birthYear, birthMonth) {
-            let originalAge;
-            if (gender === 'male') {
-                originalAge = 60;
-            } else {
-                originalAge = isCadre ? 55 : 50;
-            }
-            let year = birthYear + originalAge;
-            let month = birthMonth;
-            // 月份进位处理
-            if (month > 12) {
-                year += 1;
-                month -= 12;
-            }
-            return { originalYear: year, originalMonth: month };
+        function getOriRetire(gender, isCadre, y, m) {
+            let age = gender==='male' ? 60 : (isCadre ? 55 : 50);
+            let year = y + age, month = m;
+            if (month>12) { year++; month-=12; }
+            return {year, month};
         }
 
-        // 4.2 延迟退休时间计算
-        function getDelayedRetirement(gender, isCadre, birthYear, birthMonth) {
-            let baseAge, delayRate, finalAge, thresholdYear, thresholdMonth;
+        function getDelayRetire(gender, isCadre, y, m) {
+            const base = 2025;
+            let ba, dr, fa, ty, tm;
+            if (gender==='male') { ba=60; dr=4; fa=63; ty=1976; tm=9; }
+            else if (isCadre) { ba=55; dr=4; fa=58; ty=1981; tm=9; }
+            else { ba=50; dr=2; fa=55; ty=1984; tm=11; }
 
-            // 按人员类型配置参数
-            if (gender === 'male') {
-                baseAge = 60;
-                delayRate = 4;
-                finalAge = 63;
-                thresholdYear = 1976;
-                thresholdMonth = 9;
-            } else if (isCadre) {
-                baseAge = 55;
-                delayRate = 4;
-                finalAge = 58;
-                thresholdYear = 1981;
-                thresholdMonth = 9;
-            } else {
-                baseAge = 50;
-                delayRate = 2;
-                finalAge = 55;
-                thresholdYear = 1984;
-                thresholdMonth = 11;
+            if (y>ty || (y===ty && m>=tm)) {
+                let year = y+fa, month = m;
+                if (month>12) { year++; month-=12; }
+                return {year, month};
             }
-
-            // 判断是否触发最终年龄
-            const isOverThreshold = (birthYear > thresholdYear) || 
-                                    (birthYear === thresholdYear && birthMonth >= thresholdMonth);
-            
-            if (isOverThreshold) {
-                let year = birthYear + finalAge;
-                let month = birthMonth;
-                if (month > 12) {
-                    year += 1;
-                    month -= 12;
-                }
-                return { delayedYear: year, delayedMonth: month };
-            } else {
-                // 渐进式延迟计算
-                const triggerYearDiff = birthYear + baseAge - BASE_YEAR;
-                const triggerTotalMonths = triggerYearDiff * 12 + birthMonth;
-                const delayMonths = Math.ceil(triggerTotalMonths / delayRate); // 向上取整
-                const totalMonths = baseAge * 12 + delayMonths;
-                
-                const years = Math.floor(totalMonths / 12);
-                const months = totalMonths % 12;
-                let year = birthYear + years;
-                let month = birthMonth + months;
-                
-                if (month > 12) {
-                    year += 1;
-                    month -= 12;
-                }
-                return { delayedYear: year, delayedMonth: month };
-            }
+            const diff = y + ba - base;
+            const total = diff*12 + m;
+            const delay = Math.ceil(total/dr);
+            const sum = ba*12 + delay;
+            let ys = Math.floor(sum/12), ms = sum%12;
+            let year = y+ys, month = m+ms;
+            if (month>12) { year++; month-=12; }
+            return {year, month};
         }
 
-        // 5. 辅助函数
-        function resetResults() {
-            Object.values(resultEls).forEach(el => el.textContent = '-');
+        function reset() {
+            Object.values(resultEls).forEach(e=>e.textContent='-');
         }
 
-        // 6. 绑定事件监听
-        // 身份证输入监听
-        idCardInput.addEventListener('input', (e) => {
-            const value = e.target.value.trim();
-            if (value.length === 15 || value.length === 18) {
-                parseIdCard(value);
-            } else if (value.length === 0) {
-                idCardError.style.display = 'none';
-                idCardInput.style.borderColor = '#bdc3c7';
-                resetResults();
-            } else {
-                idCardError.style.display = 'block';
-                idCardInput.style.borderColor = '#e74c3c';
-                resetResults();
-            }
+        idCardInput.addEventListener('input', e=>{
+            const v = e.target.value.trim();
+            if (v.length===15||v.length===18) parseIdCard(v);
+            else if (!v) { idCardError.style.display='none'; idCardInput.style.borderColor='#bdc3c7'; reset(); }
+            else { idCardError.style.display='block'; idCardInput.style.borderColor='#e74c3c'; reset(); }
         });
 
-        // 女干部选择监听（身份证模式）
-        document.querySelectorAll('input[name="idCadre"]').forEach(radio => {
-            radio.addEventListener('change', () => {
-                if (idCardInput.value.trim()) {
-                    parseIdCard(idCardInput.value.trim());
-                }
-            });
-        });
+        document.querySelectorAll('input[name="idCadre"]').forEach(r=>r.addEventListener('change',()=>idCardInput.value&&parseIdCard(idCardInput.value)));
+        manualBirthDate.addEventListener('change',calculateFromManualInput);
+        document.querySelectorAll('input[name="manualGender"],input[name="manualCadre"]').forEach(r=>r.addEventListener('change',calculateFromManualInput));
 
-        // 手动输入区监听
-        manualBirthDate.addEventListener('change', calculateFromManualInput);
-        document.querySelectorAll('input[name="manualGender"]').forEach(radio => {
-            radio.addEventListener('change', calculateFromManualInput);
-        });
-        document.querySelectorAll('input[name="manualCadre"]').forEach(radio => {
-            radio.addEventListener('change', calculateFromManualInput);
-        });
-
-        // 7. 初始化：设置默认日期（1980年1月）
         manualBirthDate.value = '1980-01-01';
         calculateFromManualInput();
     </script>
