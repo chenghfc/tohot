@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>双透视表数据统计工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+    <style>
+        * {box-sizing: border-box;margin:0;padding:0;font-family:Microsoft Yahei}
+        body{padding:20px;background:#f5f7fa}
+        .container{max-width:1600px;margin:0 auto}
+        .panel{background:#fff;padding:16px;border-radius:8px;box-shadow:0 1px 4px #ddd;margin-bottom:20px}
+        .title{font-size:18px;font-weight:bold;margin-bottom:12px;color:#222}
+        .upload-area{padding:12px;border:1px dashed #999;margin-bottom:16px}
+        button{padding:6px 14px;cursor:pointer;border:none;background:#409eff;color:#fff;border-radius:4px}
+        button:hover{background:#66b1ff}
+        table{border-collapse: collapse;width:100%;margin:8px 0;}
+        th,td{border:1px solid #ccc;padding:8px;text-align:center;min-width:90px}
+        th{background:#eef5ff}
+        .grid-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+        .tip{color:#666;margin:8px 0;font-size:14px}
+    </style>
+</head>
+<body>
+<div id="app" class="container">
+    <div class="panel">
+        <div class="title">文件上传（上传后自动统计）</div>
+        <div class="upload-area">
+            <input type="file" accept=".xlsx,.xls" @change="handleFile" ref="fileInput">
+            <span class="tip">请上传Excel文件，字段：受理人、第一次流转时间、第一次流转受理时间、流转分库、处理人</span>
+        </div>
+    </div>
+
+    <div class="grid-row">
+        <!-- 透视表1 -->
+        <div class="panel">
+            <div class="title">透视表一｜行：受理人｜列：第一次流转时间、第一次流转受理时间（计数）</div>
+            <table v-if="pivot1.length>0">
+                <thead>
+                    <tr>
+                        <th>受理人</th>
+                        <th>第一次流转时间计数</th>
+                        <th>第一次流转受理时间计数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in pivot1" :key="row.name">
+                        <td>{{row.name}}</td>
+                        <td>{{row.col1}}</td>
+                        <td>{{row.col2}}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div v-else class="tip">暂无数据，请上传Excel文件</div>
+            <button style="margin-top:10px" @click="exportPivot1" v-if="pivot1.length>0">导出透视表1</button>
+        </div>
+
+        <!-- 透视表2 -->
+        <div class="panel">
+            <div class="title">透视表二｜行：流转分库+处理人｜按分库排序（空分库不纳入）</div>
+            <table v-if="pivot2.length>0">
+                <thead>
+                    <tr>
+                        <th>流转分库</th>
+                        <th>处理人</th>
+                        <th>处理人计数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in pivot2" :key="row.key">
+                        <td>{{row.fenku}}</td>
+                        <td>{{row.chuliren}}</td>
+                        <td>{{row.count}}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div v-else class="tip">暂无符合条件数据（检查【流转分库】列是否存在有效值）</div>
+            <button style="margin-top:10px" @click="exportPivot2" v-if="pivot2.length>0">导出透视表2</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const { utils, writeFile } = XLSX;
+new Vue({
+    el:'#app',
+    data(){
+        return {
+            rawData:[],
+            pivot1:[],
+            pivot2:[]
+        }
+    },
+    methods:{
+        handleFile(e){
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = evt=>{
+                const wb = XLSX.read(evt.target.result,{type:'binary'});
+                const sheet = wb.Sheets[wb.SheetNames[0]];
+                this.rawData = XLSX.utils.sheet_to_json(sheet);
+                // 上传完成后自动生成统计
+                this.buildPivot();
+            }
+            reader.readAsBinaryString(file);
+        },
+        buildPivot(){
+            // ========== 透视表1 ==========
+            const map1 = {};
+            this.rawData.forEach(item=>{
+                const lr = item['受理人'] || '未知';
+                if(!map1[lr]) map1[lr] = {col1:0,col2:0};
+                if(item['第一次流转时间']) map1[lr].col1++;
+                if(item['第一次流转受理时间']) map1[lr].col2++;
+            })
+            this.pivot1 = Object.entries(map1).map(([name,val])=>({
+                name,
+                col1:val.col1,
+                col2:val.col2
+            }))
+
+            // ========== 透视表2 ==========
+            const map2 = {};
+            this.rawData.forEach(item=>{
+                const fk = item['流转分库'];
+                const fkTrim = fk ? String(fk).trim() : '';
+                if(fkTrim === '') return;
+
+                const cr = item['处理人'] || '未知';
+                const key = fkTrim + '||' + cr;
+                if(!map2[key]) map2[key] = {fenku:fkTrim, chuliren:cr, count:0};
+                map2[key].count++;
+            })
+            // 按分库中文排序，同分库按处理人排序
+            this.pivot2 = Object.values(map2).sort((a,b)=>{
+                if(a.fenku.localeCompare(b.fenku,'zh-CN') !== 0){
+                    return a.fenku.localeCompare(b.fenku,'zh-CN');
+                }
+                return a.chuliren.localeCompare(b.chuliren,'zh-CN');
+            });
+        },
+        exportPivot1(){
+            const ws = utils.json_to_sheet(this.pivot1);
+            const wb = utils.book_new();
+            utils.book_append_sheet(wb,ws,"透视表1");
+            writeFile(wb,"透视表1_受理人统计.xlsx");
+        },
+        exportPivot2(){
+            const ws = utils.json_to_sheet(this.pivot2);
+            const wb = utils.book_new();
+            utils.book_append_sheet(wb,ws,"透视表2");
+            writeFile(wb,"透视表2_分库处理人统计.xlsx");
+        }
+    }
+})
+</script>
+</body>
+</html>
