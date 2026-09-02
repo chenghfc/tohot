@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>微信服务统计工具</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    * {box-sizing: border-box;margin:0;padding:0;font-family:Microsoft Yahei}
+    body {padding:20px;background:#f5f7fa}
+    .container {max-width:1100px;margin:0 auto;background:#fff;padding:24px;border-radius:12px;box-shadow:0 2px 12px #e2e8f0}
+    h2 {color:#1f2937;margin-bottom:20px;text-align:center}
+    .upload-box {border:2px dashed #409eff;border-radius:8px;padding:40px;text-align:center;margin-bottom:24px;cursor:pointer;color:#666}
+    .upload-box:hover {background:#f0f7ff}
+    input[type=file] {display:none}
+    .section-title {font-size:18px;font-weight:bold;margin:24px 0 12px;color:#333;border-left:4px solid #409eff;padding-left:10px}
+    table {width:100%;border-collapse:collapse;margin-bottom:16px}
+    th,td {border:1px solid #e5e7eb;padding:10px;text-align:center}
+    th {background:#f2f6fc}
+    .total-row {background:#e6f0ff;font-weight:bold}
+    .tip {color:#999;font-size:14px;margin:8px 0}
+    .btn {padding:8px 16px;background:#409eff;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-top:10px;margin-right:10px}
+    .btn:hover {background:#337ecc}
+    .btn-group {margin-bottom:20px}
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>微信服务统计工具</h2>
+  <div class="upload-box" id="uploadArea">
+    <p>点击上传 Excel / CSV 表格</p>
+    <p class="tip">表格需包含：问题描述、受理人</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+  </div>
+
+  <div id="resultWrap" style="display:none">
+    <div class="btn-group">
+      <button class="btn" id="exportAllBtn">导出统计Excel</button>
+    </div>
+
+    <div class="section-title">统计汇总</div>
+    <table id="totalTable">
+      <thead>
+        <tr>
+          <th>受理人</th>
+          <th>微信咨询</th>
+          <th>微信主动推送消息</th>
+          <th>微信催费</th>
+          <th>合计</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const resultWrap = document.getElementById('resultWrap');
+const totalTable = document.getElementById('totalTable').querySelector('tbody');
+const exportAllBtn = document.getElementById('exportAllBtn');
+
+// 固定受理人列表（顺序固定）
+const targetUserList = [
+  "周燕",
+  "郑敏",
+  "朱林燕",
+  "胡艳艳",
+  "刘伟",
+  "王玉娣",
+  "王小杰",
+  "朱思敏",
+  "杨丽红"
+];
+
+// 分类关键词规则
+const ruleMap = [
+  {key:'wxConsult',name:'微信咨询',keyword:['微信咨询','咨询微信','微信询问']},
+  {key:'wxPush',name:'微信主动推送消息',keyword:['微信推送','主动推送','推送消息']},
+  {key:'wxFee',name:'微信催费',keyword:['催费','微信催缴','缴费提醒']}
+];
+
+uploadArea.onclick = ()=> fileInput.click();
+uploadArea.ondragover = e=>{e.preventDefault();uploadArea.style.background='#e6f0ff'};
+uploadArea.ondragleave = ()=> uploadArea.style.background='';
+uploadArea.ondrop = e=>{
+  e.preventDefault();uploadArea.style.background='';
+  if(e.dataTransfer.files.length) fileInput.files = e.dataTransfer.files;
+  fileInput.dispatchEvent(new Event('change'));
+};
+
+fileInput.onchange = async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf);
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const json = XLSX.utils.sheet_to_json(sheet,{header:'A'});
+  processData(json);
+};
+
+function matchType(text){
+  if(!text) return '未匹配';
+  const str = String(text).toLowerCase();
+  for(let r of ruleMap){
+    for(let k of r.keyword){
+      if(str.includes(k)) return r.name;
+    }
+  }
+  return '其他问题';
+}
+
+function processData(raw){
+  totalTable.innerHTML = '';
+  resultWrap.style.display = 'block';
+
+  const headerRow = raw[0];
+  let colDesc = '', colUser = '';
+  for(let k in headerRow){
+    const val = String(headerRow[k]).trim();
+    if(val.includes('问题描述')) colDesc = k;
+    if(val.includes('受理人')) colUser = k;
+  }
+  if(!colDesc || !colUser){
+    alert('表格缺少【问题描述】或【受理人】列！');
+    return;
+  }
+
+  const personStat = {};
+  targetUserList.forEach(name => {
+    personStat[name] = {
+      '微信咨询':0,'微信主动推送消息':0,'微信催费':0,'其他问题':0
+    };
+  });
+
+  for(let i=1;i<raw.length;i++){
+    const row = raw[i];
+    const user = String(row[colUser]||'').trim();
+    if(!targetUserList.includes(user)) continue;
+
+    const desc = String(row[colDesc]||'');
+    const type = matchType(desc);
+    personStat[user][type]++;
+  }
+
+  let sumConsult = 0;
+  let sumPush = 0;
+  let sumFee = 0;
+  let sumTotal = 0;
+
+  targetUserList.forEach(user => {
+    const d = personStat[user];
+    const rowTotal = d['微信咨询'] + d['微信主动推送消息'] + d['微信催费'];
+
+    sumConsult += d['微信咨询'];
+    sumPush += d['微信主动推送消息'];
+    sumFee += d['微信催费'];
+    sumTotal += rowTotal;
+
+    const trTotal = document.createElement('tr');
+    trTotal.innerHTML = `
+      <td>${user}</td>
+      <td>${d['微信咨询']}</td>
+      <td>${d['微信主动推送消息']}</td>
+      <td>${d['微信催费']}</td>
+      <td>${rowTotal}</td>
+    `;
+    totalTable.appendChild(trTotal);
+  });
+
+  // 底部添加总合计行
+  const sumTr = document.createElement('tr');
+  sumTr.className = 'total-row';
+  sumTr.innerHTML = `
+    <td>总计</td>
+    <td>${sumConsult}</td>
+    <td>${sumPush}</td>
+    <td>${sumFee}</td>
+    <td>${sumTotal}</td>
+  `;
+  totalTable.appendChild(sumTr);
+
+  exportAllBtn.onclick = ()=> exportExcel(personStat, sumConsult, sumPush, sumFee, sumTotal);
+}
+
+// 导出Excel：只保留总汇总一个工作表
+function exportExcel(statData, sumConsult, sumPush, sumFee, sumTotal){
+  const wb = XLSX.utils.book_new();
+  const userList = targetUserList;
+
+  const totalSheet = [['受理人','微信咨询','微信主动推送消息','微信催费','合计']];
+  userList.forEach(u=>{
+    const d = statData[u];
+    const rowTotal = d['微信咨询'] + d['微信主动推送消息'] + d['微信催费'];
+    totalSheet.push([u,d['微信咨询'],d['微信主动推送消息'],d['微信催费'],rowTotal]);
+  });
+  totalSheet.push(['总计', sumConsult, sumPush, sumFee, sumTotal]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(totalSheet), "汇总");
+
+  XLSX.writeFile(wb, "微信三类问题统计.xlsx");
+}
+</script>
+</body>
+</html>
