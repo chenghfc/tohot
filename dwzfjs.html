@@ -146,6 +146,10 @@
             font-size: 15px;
             color: #334155;
         }
+        .result-item.sub-item {
+            color: #475569;
+            padding-left: 12px;
+        }
         .result-item.total {
             font-weight: bold;
             font-size: 16px;
@@ -186,7 +190,7 @@
                 <div class="col">
                     <label>合同金额（人民币）</label>
                     <input type="text" id="payAmount" placeholder="" value="">
-                    </div>
+                </div>
             </div>
         </div>
 
@@ -373,19 +377,17 @@
         profitRate.value = v.toFixed(2);
     });
 
-    // ===== 精确四舍五入工具（金额统一精确到分，避免浮点误差与 toFixed 缺陷）=====
-    // 修复说明：JS 中 1.005.toFixed(2) === "1.00"（浮点表示导致），
-    // 此处先放大 100 倍取整再还原，保证"四舍五入"结果正确。
+    // ===== 精确四舍五入工具 =====
     function round2(value) {
         const n = Number(value);
         if(!isFinite(n)) return 0;
         return Math.round((n + Number.EPSILON) * 100) / 100;
     }
-    // 金额展示：先 round2 再 toFixed(2)，保证输出恒为两位小数字符串
+    // 金额展示：格式化为两位小数
     function fmtMoney(value) {
         return round2(value).toFixed(2);
     }
-    // 获取并校验目标金额（输入金额也统一舍入到分）
+    // 获取并校验目标金额
     function getTargetAmount() {
         const val = payAmount.value.trim();
         const num = parseFloat(val);
@@ -393,7 +395,7 @@
         return round2(num);
     }
 
-    // 核心计算逻辑修正
+    // 核心计算逻辑
     calcBtn.addEventListener('click', ()=>{
         const targetPay = getTargetAmount();
         if(targetPay === null) {
@@ -432,12 +434,10 @@
         } 
         else if(useVat && !useIncome) {
             if(vatBearer === 'foreign') {
-                // 外方承担：目标金额为含税价，不含税基数 = 目标金额 / (1 + 增值税率)
                 vatNoTaxBase = round2(targetPay / (1 + vatR));
                 vatTax = round2(vatNoTaxBase * vatR);
                 realTransfer = round2(targetPay - vatTax);
             } else {
-                // 居民承担：目标金额为约定不含税价
                 vatNoTaxBase = round2(targetPay);
                 vatTax = round2(vatNoTaxBase * vatR);
                 realTransfer = round2(targetPay);
@@ -445,12 +445,10 @@
         } 
         else if(!useVat && useIncome) {
             if(incomeBearer === 'foreign') {
-                // 外方承担：目标金额为含税收入
                 incomeTaxBase = round2(targetPay);
                 incomeTax = round2(incomeTaxBase * incomeRealRate);
                 realTransfer = round2(targetPay - incomeTax);
             } else {
-                // 居民承担：目标金额为税后净额，需倒算含所得税基数
                 incomeTaxBase = round2(targetPay / (1 - incomeRealRate));
                 incomeTax = round2(incomeTaxBase * incomeRealRate);
                 realTransfer = round2(targetPay);
@@ -459,7 +457,6 @@
         else {
             // 双税同时存在
             if(vatBearer === 'foreign' && incomeBearer === 'foreign') {
-                // 外方承担双税
                 vatNoTaxBase = round2(targetPay / (1 + vatR));
                 vatTax = round2(vatNoTaxBase * vatR);
                 incomeTaxBase = vatNoTaxBase;
@@ -467,7 +464,6 @@
                 realTransfer = round2(targetPay - vatTax - incomeTax);
             } 
             else if(vatBearer === 'company' && incomeBearer === 'company') {
-                // 居民承担双税（目标金额为外方到手金额）
                 incomeTaxBase = round2(targetPay / (1 - incomeRealRate));
                 vatNoTaxBase = incomeTaxBase;
                 vatTax = round2(vatNoTaxBase * vatR);
@@ -475,7 +471,6 @@
                 realTransfer = round2(targetPay);
             } 
             else if(vatBearer === 'foreign' && incomeBearer === 'company') {
-                // 外方承担增值税，居民承担所得税
                 vatNoTaxBase = round2(targetPay / (1 + vatR));
                 vatTax = round2(vatNoTaxBase * vatR);
                 incomeTaxBase = round2(vatNoTaxBase / (1 - incomeRealRate));
@@ -483,7 +478,6 @@
                 realTransfer = round2(targetPay - vatTax);
             } 
             else {
-                // 居民承担增值税，外方承担所得税
                 vatNoTaxBase = round2(targetPay);
                 vatTax = round2(vatNoTaxBase * vatR);
                 incomeTaxBase = round2(targetPay);
@@ -492,16 +486,18 @@
             }
         }
 
-        // 构建输出文本
+        // 构建输出文本（增加计税依据展示）
         let resultHtml = "";
         if (!useVat && !useIncome) {
             resultHtml += `<div class="result-item">未勾选任何代扣代缴税费</div>`;
         }
         if (useVat) {
-            resultHtml += `<div class="result-item">代扣代缴增值税税额：<span>${fmtMoney(vatTax)} 元</span></div>`;
+            resultHtml += `<div class="result-item">增值税计税依据：<span>${fmtMoney(vatNoTaxBase)} 元</span></div>`;
+            resultHtml += `<div class="result-item sub-item">代扣代缴增值税税额：<span>${fmtMoney(vatTax)} 元</span></div>`;
         }
         if (useIncome) {
-            resultHtml += `<div class="result-item">代扣代缴企业所得税税额：<span>${fmtMoney(incomeTax)} 元</span></div>`;
+            resultHtml += `<div class="result-item">企业所得税计税依据：<span>${fmtMoney(incomeTaxBase)} 元</span></div>`;
+            resultHtml += `<div class="result-item sub-item">代扣代缴企业所得税税额：<span>${fmtMoney(incomeTax)} 元</span></div>`;
         }
         resultHtml += `<div class="result-item total">实际对外支付打款金额：<span>${fmtMoney(realTransfer)} 元</span></div>`;
 
