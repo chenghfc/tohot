@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>非居民对外支付税款计算</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        body {
+            background: #f5f7fa;
+            padding: 30px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        /* 三大区域横向并排容器 */
+        .block-wrap {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .block {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            background: #fff;
+            height: 100%;
+        }
+        .block-title {
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 16px;
+            color: #2b6cb0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        /* 表单布局 */
+        .row-three {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 14px;
+            align-items: center;
+        }
+        .col {
+            width: 100%;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #4a5568;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        input, select {
+            width: 100%;
+            height: 36px;
+            padding: 0 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        input:disabled, select:disabled {
+            background: #edf2f7;
+            color: #a0aec0;
+            cursor: not-allowed;
+        }
+        /* 只读文本展示标签样式 */
+        .static-text {
+            height: 36px;
+            line-height: 36px;
+            padding: 0 10px;
+            background: #f3f4f6;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        /* 缩小复选框 */
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .radio-group {
+            display: flex;
+            gap: 12px;
+        }
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+        .radio-item input[type="radio"] {
+            width: auto;
+            height: auto;
+        }
+        .btn-box {
+            text-align: center;
+            margin: 25px 0;
+        }
+        button {
+            padding: 12px 40px;
+            background: #2b6cb0;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #2c5282;
+        }
+        .result-box {
+            background: #f0f7ff;
+            padding: 20px;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        .result-title {
+            font-weight: bold;
+            margin-bottom: 12px;
+            font-size: 16px;
+            color: #1e3a8a;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 15px;
+            color: #334155;
+        }
+        .result-item.total {
+            font-weight: bold;
+            font-size: 16px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #bfdbfe;
+            color: #1e40af;
+        }
+        .tip {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 4px;
+            white-space: nowrap;
+        }
+        /* 响应式适配 */
+        @media(max-width: 1024px) {
+            .block-wrap {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media(max-width: 720px) {
+            .block-wrap, .row-three {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>非居民对外支付税款计算</h1>
+
+    <!-- 三大区块横向并排容器 -->
+    <div class="block-wrap">
+        <!-- 基础支付信息 -->
+        <div class="block">
+            <div class="block-title">支付信息</div>
+            <div class="row-three">
+                <div class="col">
+                    <label>合同金额（人民币）</label>
+                    <input type="text" id="payAmount" placeholder="" value="">
+                    </div>
+            </div>
+        </div>
+
+        <!-- 企业所得税区域 -->
+        <div class="block" id="taxIncomeBlock">
+            <div class="block-title">
+                <input type="checkbox" id="hasIncomeTax">
+                <label for="hasIncomeTax" style="cursor:pointer; margin-bottom:0;">代扣代缴企业所得税</label>
+            </div>
+            <div class="tax-income-content">
+                <div class="row-three">
+                    <div class="col">
+                        <label>税款承担方</label>
+                        <div class="radio-group">
+                            <div class="radio-item">
+                                <input type="radio" name="incomeBearer" id="bearerIncomeCompany" value="company">
+                                <label for="bearerIncomeCompany">居民</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="incomeBearer" id="bearerIncomeForeign" value="foreign" checked>
+                                <label for="bearerIncomeForeign">非居民</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label>扣缴方式</label>
+                        <div class="radio-group">
+                            <div class="radio-item">
+                                <input type="radio" name="deduType" id="deduSource" value="source" checked>
+                                <label for="deduSource">源泉扣缴</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="deduType" id="deduAssign" value="assign">
+                                <label for="deduAssign">指定扣缴</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col"></div>
+                </div>
+                <!-- 源泉扣缴参数 -->
+                <div id="sourceTaxRow" class="row-three">
+                    <div class="col">
+                        <label>税率</label>
+                        <div class="static-text">10%</div>
+                    </div>
+                    <div class="col">
+                        <label>协定税率(0~10%)</label>
+                        <input type="number" id="treatyRate" value="10" min="0" max="10" step="0.01">
+                    </div>
+                    <div class="col"></div>
+                </div>
+                <!-- 指定扣缴参数 -->
+                <div id="assignTaxRow" class="row-three" style="display:none">
+                    <div class="col">
+                        <label>税率</label>
+                        <div class="static-text">25%</div>
+                    </div>
+                    <div class="col">
+                        <label>核定利润率(15~50%)</label>
+                        <input type="number" id="profitRate" value="15" min="15" max="50" step="0.01">
+                    </div>
+                    <div class="col"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 增值税区域 -->
+        <div class="block" id="taxVatBlock">
+            <div class="block-title">
+                <input type="checkbox" id="hasVatTax">
+                <label for="hasVatTax" style="cursor:pointer; margin-bottom:0;">代扣代缴增值税</label>
+            </div>
+            <div class="tax-vat-content">
+                <div class="row-three">
+                    <div class="col">
+                        <label>税款承担方</label>
+                        <div class="radio-group">
+                            <div class="radio-item">
+                                <input type="radio" name="vatBearer" id="bearerVatCompany" value="company">
+                                <label for="bearerVatCompany">居民</label>
+                            </div>
+                            <div class="radio-item">
+                                <input type="radio" name="vatBearer" id="bearerVatForeign" value="foreign" checked>
+                                <label for="bearerVatForeign">非居民</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label>税率</label>
+                        <select id="vatRate">
+                            <option value="5">5%</option>
+                            <option value="6" selected>6%</option>
+                            <option value="9">9%</option>
+                            <option value="13">13%</option>
+                        </select>
+                    </div>
+                    <div class="col"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="btn-box">
+        <button id="calcBtn">开始计算税款</button>
+    </div>
+
+    <!-- 计算结果 -->
+    <div class="result-box" id="resultBox" style="display:none">
+        <div class="result-title">计算结果明细</div>
+        <div id="resultContent"></div>
+    </div>
+</div>
+
+<script>
+    const hasIncomeTax = document.getElementById('hasIncomeTax');
+    const taxIncomeContent = document.querySelector('.tax-income-content');
+    const sourceTaxRow = document.getElementById('sourceTaxRow');
+    const assignTaxRow = document.getElementById('assignTaxRow');
+    const deduSource = document.getElementById('deduSource');
+    const deduAssign = document.getElementById('deduAssign');
+    const treatyRate = document.getElementById('treatyRate');
+    const profitRate = document.getElementById('profitRate');
+
+    const hasVatTax = document.getElementById('hasVatTax');
+    const taxVatContent = document.querySelector('.tax-vat-content');
+
+    const payAmount = document.getElementById('payAmount');
+    const vatRate = document.getElementById('vatRate');
+    const calcBtn = document.getElementById('calcBtn');
+    const resultBox = document.getElementById('resultBox');
+    const resultContent = document.getElementById('resultContent');
+
+    // 勾选税种时默认选中非居民
+    function setDefaultForeignWhenCheck(blockType) {
+        if(blockType === 'income') {
+            document.getElementById('bearerIncomeForeign').checked = true;
+        } else if(blockType === 'vat') {
+            document.getElementById('bearerVatForeign').checked = true;
+        }
+    }
+
+    // 所得税灰化控制
+    function toggleIncomeBlock() {
+        const checked = hasIncomeTax.checked;
+        const inputs = taxIncomeContent.querySelectorAll('input, select');
+        inputs.forEach(el => el.disabled = !checked);
+        if (checked) setDefaultForeignWhenCheck('income');
+    }
+    hasIncomeTax.addEventListener('change', toggleIncomeBlock);
+
+    // 扣缴方式切换
+    function toggleDeduType() {
+        if(deduSource.checked) {
+            sourceTaxRow.style.display = 'grid';
+            assignTaxRow.style.display = 'none';
+        } else {
+            sourceTaxRow.style.display = 'none';
+            assignTaxRow.style.display = 'grid';
+        }
+    }
+    deduSource.addEventListener('change', toggleDeduType);
+    deduAssign.addEventListener('change', toggleDeduType);
+
+    // 增值税灰化控制
+    function toggleVatBlock() {
+        const checked = hasVatTax.checked;
+        const inputs = taxVatContent.querySelectorAll('input, select');
+        inputs.forEach(el => el.disabled = !checked);
+        if (checked) setDefaultForeignWhenCheck('vat');
+    }
+    hasVatTax.addEventListener('change', toggleVatBlock);
+
+    // 税率边界限制
+    treatyRate.addEventListener('blur', ()=>{
+        let v = parseFloat(treatyRate.value);
+        if(isNaN(v)) v = 10;
+        v = Math.max(0, Math.min(10, v));
+        treatyRate.value = v.toFixed(2);
+    });
+    profitRate.addEventListener('blur', ()=>{
+        let v = parseFloat(profitRate.value);
+        if(isNaN(v)) v = 15;
+        v = Math.max(15, Math.min(50, v));
+        profitRate.value = v.toFixed(2);
+    });
+
+    // ===== 精确四舍五入工具（金额统一精确到分，避免浮点误差与 toFixed 缺陷）=====
+    // 修复说明：JS 中 1.005.toFixed(2) === "1.00"（浮点表示导致），
+    // 此处先放大 100 倍取整再还原，保证"四舍五入"结果正确。
+    function round2(value) {
+        const n = Number(value);
+        if(!isFinite(n)) return 0;
+        return Math.round((n + Number.EPSILON) * 100) / 100;
+    }
+    // 金额展示：先 round2 再 toFixed(2)，保证输出恒为两位小数字符串
+    function fmtMoney(value) {
+        return round2(value).toFixed(2);
+    }
+    // 获取并校验目标金额（输入金额也统一舍入到分）
+    function getTargetAmount() {
+        const val = payAmount.value.trim();
+        const num = parseFloat(val);
+        if(isNaN(num) || num <= 0) return null;
+        return round2(num);
+    }
+
+    // 核心计算逻辑修正
+    calcBtn.addEventListener('click', ()=>{
+        const targetPay = getTargetAmount();
+        if(targetPay === null) {
+            alert("请输入有效的合同金额");
+            return;
+        }
+
+        let vatNoTaxBase = 0;
+        let vatTax = 0;
+        let incomeTaxBase = 0;
+        let incomeTax = 0;
+        let realTransfer = 0;
+
+        const useVat = hasVatTax.checked;
+        const useIncome = hasIncomeTax.checked;
+
+        const vatBearer = document.querySelector('input[name="vatBearer"]:checked').value;
+        const incomeBearer = document.querySelector('input[name="incomeBearer"]:checked').value;
+        const vatR = Number(vatRate.value) / 100;
+
+        // 计算企业所得税实际有效税率
+        let incomeRealRate = 0;
+        if(useIncome) {
+            if(deduSource.checked) {
+                let tr = Number(treatyRate.value) / 100;
+                incomeRealRate = tr < 0.1 ? tr : 0.1;
+            } else {
+                let pr = Number(profitRate.value) / 100;
+                incomeRealRate = pr * 0.25;
+            }
+        }
+
+        // 分情况计算
+        if(!useVat && !useIncome) {
+            realTransfer = targetPay;
+        } 
+        else if(useVat && !useIncome) {
+            if(vatBearer === 'foreign') {
+                // 外方承担：目标金额为含税价，不含税基数 = 目标金额 / (1 + 增值税率)
+                vatNoTaxBase = round2(targetPay / (1 + vatR));
+                vatTax = round2(vatNoTaxBase * vatR);
+                realTransfer = round2(targetPay - vatTax);
+            } else {
+                // 居民承担：目标金额为约定不含税价
+                vatNoTaxBase = round2(targetPay);
+                vatTax = round2(vatNoTaxBase * vatR);
+                realTransfer = round2(targetPay);
+            }
+        } 
+        else if(!useVat && useIncome) {
+            if(incomeBearer === 'foreign') {
+                // 外方承担：目标金额为含税收入
+                incomeTaxBase = round2(targetPay);
+                incomeTax = round2(incomeTaxBase * incomeRealRate);
+                realTransfer = round2(targetPay - incomeTax);
+            } else {
+                // 居民承担：目标金额为税后净额，需倒算含所得税基数
+                incomeTaxBase = round2(targetPay / (1 - incomeRealRate));
+                incomeTax = round2(incomeTaxBase * incomeRealRate);
+                realTransfer = round2(targetPay);
+            }
+        } 
+        else {
+            // 双税同时存在
+            if(vatBearer === 'foreign' && incomeBearer === 'foreign') {
+                // 外方承担双税
+                vatNoTaxBase = round2(targetPay / (1 + vatR));
+                vatTax = round2(vatNoTaxBase * vatR);
+                incomeTaxBase = vatNoTaxBase;
+                incomeTax = round2(incomeTaxBase * incomeRealRate);
+                realTransfer = round2(targetPay - vatTax - incomeTax);
+            } 
+            else if(vatBearer === 'company' && incomeBearer === 'company') {
+                // 居民承担双税（目标金额为外方到手金额）
+                incomeTaxBase = round2(targetPay / (1 - incomeRealRate));
+                vatNoTaxBase = incomeTaxBase;
+                vatTax = round2(vatNoTaxBase * vatR);
+                incomeTax = round2(incomeTaxBase * incomeRealRate);
+                realTransfer = round2(targetPay);
+            } 
+            else if(vatBearer === 'foreign' && incomeBearer === 'company') {
+                // 外方承担增值税，居民承担所得税
+                vatNoTaxBase = round2(targetPay / (1 + vatR));
+                vatTax = round2(vatNoTaxBase * vatR);
+                incomeTaxBase = round2(vatNoTaxBase / (1 - incomeRealRate));
+                incomeTax = round2(incomeTaxBase * incomeRealRate);
+                realTransfer = round2(targetPay - vatTax);
+            } 
+            else {
+                // 居民承担增值税，外方承担所得税
+                vatNoTaxBase = round2(targetPay);
+                vatTax = round2(vatNoTaxBase * vatR);
+                incomeTaxBase = round2(targetPay);
+                incomeTax = round2(incomeTaxBase * incomeRealRate);
+                realTransfer = round2(targetPay - incomeTax);
+            }
+        }
+
+        // 构建输出文本
+        let resultHtml = "";
+        if (!useVat && !useIncome) {
+            resultHtml += `<div class="result-item">未勾选任何代扣代缴税费</div>`;
+        }
+        if (useVat) {
+            resultHtml += `<div class="result-item">代扣代缴增值税税额：<span>${fmtMoney(vatTax)} 元</span></div>`;
+        }
+        if (useIncome) {
+            resultHtml += `<div class="result-item">代扣代缴企业所得税税额：<span>${fmtMoney(incomeTax)} 元</span></div>`;
+        }
+        resultHtml += `<div class="result-item total">实际对外支付打款金额：<span>${fmtMoney(realTransfer)} 元</span></div>`;
+
+        resultContent.innerHTML = resultHtml;
+        resultBox.style.display = 'block';
+    });
+
+    // 初始化状态
+    toggleIncomeBlock();
+    toggleVatBlock();
+    toggleDeduType();
+</script>
+</body>
+</html>
