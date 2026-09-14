@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品税率及退税率查询</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 24px;
+        }
+
+        h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #1f2937;
+            border-left: 4px solid #2563eb;
+            padding-left: 10px;
+        }
+
+        /* 查询控制区域 */
+        .search-box {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 14px;
+            font-size: 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            color: #fff;
+            background-color: #2563eb;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        .btn-reset {
+            background-color: #6b7280;
+        }
+
+        .btn-reset:hover {
+            background-color: #4b5563;
+        }
+
+        /* 统计结果信息 */
+        .result-meta {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 12px;
+        }
+
+        /* 表格样式 */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background-color: #f9fafb;
+            color: #4b5563;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        tbody tr:hover {
+            background-color: #f3f4f6;
+        }
+
+        /* 日期终止为 2100-12-31 时的绿色高亮样式 */
+        .date-green {
+            color: #16a34a;
+            font-weight: 600;
+        }
+
+        /* 特殊标识标签样式 */
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* 征税 (红色) */
+        .tag-tax {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+
+        /* 免税 (黄色) */
+        .tag-free {
+            background-color: #fef9c3;
+            color: #b45309;
+            border: 1px solid #fde047;
+        }
+
+        .tag-none {
+            color: #9ca3af;
+        }
+
+        /* 初始/空数据提示 */
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>商品税率查询系统</h2>
+
+    <!-- 查询组件 -->
+    <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="请输入商品编码或商品名称进行查询..." />
+        <button id="searchBtn" class="btn">查询</button>
+        <button id="resetBtn" class="btn btn-reset">重置</button>
+    </div>
+
+    <!-- 查询结果信息 -->
+    <div class="result-meta" id="resultMeta">请在上方输入查询条件并点击查询</div>
+
+    <!-- 查询结果表格 -->
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>商品编码</th>
+                    <th>起始日期</th>
+                    <th>终止日期</th>
+                    <th>商品名称</th>
+                    <th>征税率</th>
+                    <th>退税率</th>
+                    <th>特殊标识</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr>
+                    <td colspan="7" class="no-data">暂无数据，请输入搜索条件后查询</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 引入同目录下的 data.js 文件 -->
+<script src="data.js"></script>
+
+<script>
+    // 检查数据文件加载状态
+    window.addEventListener('DOMContentLoaded', () => {
+        if (typeof productData === 'undefined' || !Array.isArray(productData)) {
+            document.getElementById('resultMeta').innerText = '未找到数据，请检查同目录下是否存在 data.js 文件。';
+            document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" class="no-data">数据文件读取失败</td></tr>`;
+        }
+    });
+
+    // 查询逻辑
+    function handleSearch() {
+        const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+        
+        // 如果未输入任何内容，清空列表并提示
+        if (!keyword) {
+            resetToDefaultState('请输入商品编码或商品名称进行查询！');
+            return;
+        }
+
+        // 检索：匹配商品编码(bm) 或 商品名称(name)
+        const filteredData = productData.filter(item => {
+            const matchBm = item.bm && item.bm.toLowerCase().includes(keyword);
+            const matchName = item.name && item.name.toLowerCase().includes(keyword);
+            return matchBm || matchName;
+        });
+
+        // 渲染检索出的数据
+        renderTable(filteredData);
+    }
+
+    // 渲染表格
+    function renderTable(data) {
+        const tbody = document.getElementById('tableBody');
+        const meta = document.getElementById('resultMeta');
+        
+        tbody.innerHTML = '';
+        meta.innerText = `查询完成，共找到 ${data.length} 条符合条件的记录`;
+
+        if (data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="no-data">未查到匹配的商品信息</td></tr>`;
+            return;
+        }
+
+        data.forEach(item => {
+            const tr = document.createElement('tr');
+
+            // 判断终止日期是否等于 2100-12-31
+            const isTargetDate = item.zzrq === "2100-12-31";
+            const dateClass = isTargetDate ? 'class="date-green"' : '';
+
+            // 特殊标识转换规则 (tsbs: 1 -> 征税(红), 2 -> 免税(黄))
+            let tsbsHtml = '<span class="tag-none">-</span>';
+            if (String(item.tsbs) === "1") {
+                tsbsHtml = '<span class="tag tag-tax">征税</span>';
+            } else if (String(item.tsbs) === "2") {
+                tsbsHtml = '<span class="tag tag-free">免税</span>';
+            }
+
+            // 格式化税率显示
+            const zslText = item.zsl !== undefined && item.zsl !== "" ? `${item.zsl}%` : '-';
+            const tslText = item.tsl !== undefined && item.tsl !== "" ? `${item.tsl}%` : '-';
+
+            tr.innerHTML = `
+                <td><strong>${item.bm || '-'}</strong></td>
+                <td ${dateClass}>${item.qsrq || '-'}</td>
+                <td ${dateClass}>${item.zzrq || '-'}</td>
+                <td>${item.name || '-'}</td>
+                <td>${zslText}</td>
+                <td>${tslText}</td>
+                <td>${tsbsHtml}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 重置页面状态为默认空状态
+    function resetToDefaultState(msg = '请在上方输入查询条件并点击查询') {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('resultMeta').innerText = msg;
+        document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" class="no-data">暂无数据，请输入搜索条件后查询</td></tr>`;
+    }
+
+    // 事件绑定：点击查询按钮
+    document.getElementById('searchBtn').addEventListener('click', handleSearch);
+    
+    // 事件绑定：键盘按 Enter 键触发查询
+    document.getElementById('searchInput').addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            handleSearch();
+        }
+    });
+
+    // 事件绑定：点击重置按钮
+    document.getElementById('resetBtn').addEventListener('click', () => {
+        resetToDefaultState();
+    });
+</script>
+
+</body>
+</html>
