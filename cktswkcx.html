@@ -205,34 +205,63 @@
         }
     });
 
-    // 查询逻辑
+    // 根据关键字过滤数据的工具函数
+    function filterByKeyword(keyword) {
+        const lowerKey = keyword.toLowerCase();
+        return productData.filter(item => {
+            const matchBm = item.bm && item.bm.toLowerCase().includes(lowerKey);
+            const matchName = item.name && item.name.toLowerCase().includes(lowerKey);
+            return matchBm || matchName;
+        });
+    }
+
+    // 查询主逻辑
     function handleSearch() {
-        const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+        const originalKeyword = document.getElementById('searchInput').value.trim();
         
         // 如果未输入任何内容，清空列表并提示
-        if (!keyword) {
+        if (!originalKeyword) {
             resetToDefaultState('请输入商品编码或商品名称进行查询！');
             return;
         }
 
-        // 检索：匹配商品编码(bm) 或 商品名称(name)
-        const filteredData = productData.filter(item => {
-            const matchBm = item.bm && item.bm.toLowerCase().includes(keyword);
-            const matchName = item.name && item.name.toLowerCase().includes(keyword);
-            return matchBm || matchName;
-        });
+        let searchKey = originalKeyword;
+        let filteredData = filterByKeyword(searchKey);
+
+        // 查找是否有完全匹配商品编码(bm)的记录
+        let exactMatch = filteredData.find(item => item.bm === searchKey);
+
+        // 判断是否触发重新查询条件：
+        // 1. 查不到完全匹配的记录 (!exactMatch)
+        // 2. 查到了完全匹配的记录，但终止日期不是 2100-12-31 (exactMatch.zzrq !== "2100-12-31")
+        let needRetry = !exactMatch || (exactMatch && exactMatch.zzrq !== "2100-12-31");
+
+        let isFallback = false;
+
+        // 若满足重新查询条件，且输入的关键字长度大于 2，则去掉最后 2 位重新查询
+        if (needRetry && searchKey.length > 2) {
+            searchKey = searchKey.slice(0, -2);
+            filteredData = filterByKeyword(searchKey);
+            isFallback = true;
+        }
 
         // 渲染检索出的数据
-        renderTable(filteredData);
+        renderTable(filteredData, isFallback ? searchKey : null);
     }
 
     // 渲染表格
-    function renderTable(data) {
+    function renderTable(data, fallbackKey = null) {
         const tbody = document.getElementById('tableBody');
         const meta = document.getElementById('resultMeta');
         
         tbody.innerHTML = '';
-        meta.innerText = `查询完成，共找到 ${data.length} 条符合条件的记录`;
+
+        // 提示信息处理
+        if (fallbackKey) {
+            meta.innerText = `未查到有效匹配记录，已自动按截取后的编码 [ ${fallbackKey} ] 重新查询，共找到 ${data.length} 条记录`;
+        } else {
+            meta.innerText = `查询完成，共找到 ${data.length} 条符合条件的记录`;
+        }
 
         if (data.length === 0) {
             tbody.innerHTML = `<tr><td colspan="7" class="no-data">未查到匹配的商品信息</td></tr>`;
