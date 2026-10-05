@@ -4,324 +4,172 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>出口退税文库查询</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #f4f6f9;
-            color: #333;
-            padding: 24px;
-        }
-
-        .container {
-            max-width: 1100px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            padding: 24px;
-        }
-
-        h2 {
-            font-size: 20px;
-            margin-bottom: 20px;
-            color: #1f2937;
-            border-left: 4px solid #2563eb;
-            padding-left: 10px;
-        }
-
-        /* 查询控制区域 */
-        .search-box {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .search-input {
-            flex: 1;
-            padding: 10px 14px;
-            font-size: 14px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .search-input:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        .btn {
-            padding: 10px 20px;
-            font-size: 14px;
-            color: #fff;
-            background-color: #2563eb;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .btn:hover {
-            background-color: #1d4ed8;
-        }
-
-        .btn-reset {
-            background-color: #6b7280;
-        }
-
-        .btn-reset:hover {
-            background-color: #4b5563;
-        }
-
-        /* 统计结果信息 */
-        .result-meta {
-            font-size: 13px;
-            color: #6b7280;
-            margin-bottom: 12px;
-        }
-
-        /* 表格样式 */
-        .table-container {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-            text-align: left;
-        }
-
-        th, td {
-            padding: 12px 14px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        th {
-            background-color: #f9fafb;
-            color: #4b5563;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        tbody tr:hover {
-            background-color: #f3f4f6;
-        }
-
-        /* 日期终止为 2100-12-31 时的绿色高亮样式 */
-        .date-green {
-            color: #16a34a;
-            font-weight: 600;
-        }
-
-        /* 特殊标识标签样式 */
-        .tag {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        /* 征税 (红色) */
-        .tag-tax {
-            background-color: #fee2e2;
-            color: #dc2626;
-        }
-
-        /* 免税 (黄色) */
-        .tag-free {
-            background-color: #fef9c3;
-            color: #b45309;
-            border: 1px solid #fde047;
-        }
-
-        .tag-none {
-            color: #9ca3af;
-        }
-
-        /* 初始/空数据提示 */
-        .no-data {
-            text-align: center;
-            padding: 40px;
-            color: #9ca3af;
-        }
-    </style>
+    <!-- 引入 Tailwind CSS 方便快速样式美化 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body class="bg-gray-100 min-h-screen p-6">
 
-<div class="container">
-    <h2>出口退税文库查询</h2>
+    <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-md p-6">
+        <!-- 页面标题 -->
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">出口退税文库查询</h1>
 
-    <!-- 查询组件 -->
-    <div class="search-box">
-        <input type="text" id="searchInput" class="search-input" placeholder="请输入商品编码或商品名称进行查询..." />
-        <button id="searchBtn" class="btn">查询</button>
-        <button id="resetBtn" class="btn btn-reset">重置</button>
+        <!-- 查询区域 -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <input 
+                type="text" 
+                id="searchInput" 
+                placeholder="请输入商品编码或商品名称..." 
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onkeypress="if(event.key === 'Enter') handleSearch()"
+            >
+            <button 
+                onclick="handleSearch()" 
+                id="searchBtn"
+                class="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition duration-200 shadow-sm flex items-center justify-center min-w-[100px]"
+            >
+                查询
+            </button>
+        </div>
+
+        <!-- 提示信息/加载状态 -->
+        <div id="statusMessage" class="hidden mb-4 p-3 rounded text-sm"></div>
+
+        <!-- 结果展示表格 -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200 text-gray-700 text-sm font-semibold">
+                        <th class="p-3">商品编码</th>
+                        <th class="p-3">起始日期</th>
+                        <th class="p-3">终止日期</th>
+                        <th class="p-3">商品名称</th>
+                        <th class="p-3">征税率</th>
+                        <th class="p-3">退税率</th>
+                        <th class="p-3">特殊标识</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody" class="divide-y divide-gray-200 text-sm text-gray-600">
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-gray-400">请输入条件并点击查询</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <!-- 查询结果信息 -->
-    <div class="result-meta" id="resultMeta">请在上方输入查询条件并点击查询</div>
-
-    <!-- 查询结果表格 -->
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>商品编码</th>
-                    <th>起始日期</th>
-                    <th>终止日期</th>
-                    <th>商品名称</th>
-                    <th>征税率</th>
-                    <th>退税率</th>
-                    <th>特殊标识</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody">
-                <tr>
-                    <td colspan="7" class="no-data">暂无数据，请输入搜索条件后查询</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- 引入同目录下的 data.js 文件 -->
-<script src="data.js"></script>
-
-<script>
-    // 检查数据文件加载状态
-    window.addEventListener('DOMContentLoaded', () => {
-        if (typeof productData === 'undefined' || !Array.isArray(productData)) {
-            document.getElementById('resultMeta').innerText = '未找到数据，请检查同目录下是否存在 data.js 文件。';
-            document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" class="no-data">数据文件读取失败</td></tr>`;
-        }
-    });
-
-    // 根据关键字过滤数据的工具函数
-    function filterByKeyword(keyword) {
-        const lowerKey = keyword.toLowerCase();
-        return productData.filter(item => {
-            const matchBm = item.bm && item.bm.toLowerCase().includes(lowerKey);
-            const matchName = item.name && item.name.toLowerCase().includes(lowerKey);
-            return matchBm || matchName;
-        });
-    }
-
-    // 查询主逻辑
-    function handleSearch() {
-        const originalKeyword = document.getElementById('searchInput').value.trim();
+    <script>
+        // 1. 初始化 Supabase 配置
+        const SUPABASE_URL = 'https://iavxzvsceqhqottgdfel.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_leAmINkxNXWip3g4mnc77A_YAn2OGLM';
         
-        // 如果未输入任何内容，清空列表并提示
-        if (!originalKeyword) {
-            resetToDefaultState('请输入商品编码或商品名称进行查询！');
-            return;
-        }
+        // 注意：请将下面的 'products' 替换为你 Supabase 数据库中实际的数据表名称
+        const TABLE_NAME = 'tsl'; 
 
-        let searchKey = originalKeyword;
-        let filteredData = filterByKeyword(searchKey);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // 查找是否有完全匹配商品编码(bm)的记录
-        let exactMatch = filteredData.find(item => item.bm === searchKey);
-
-        // 判断是否触发重新查询条件：
-        // 1. 查不到完全匹配的记录 (!exactMatch)
-        // 2. 查到了完全匹配的记录，但终止日期不是 2100-12-31 (exactMatch.zzrq !== "2100-12-31")
-        let needRetry = !exactMatch || (exactMatch && exactMatch.zzrq !== "2100-12-31");
-
-        let isFallback = false;
-
-        // 若满足重新查询条件，且输入的关键字长度大于 2，则去掉最后 2 位重新查询
-        if (needRetry && searchKey.length > 2) {
-            searchKey = searchKey.slice(0, -2);
-            filteredData = filterByKeyword(searchKey);
-            isFallback = true;
-        }
-
-        // 渲染检索出的数据
-        renderTable(filteredData, isFallback ? searchKey : null);
-    }
-
-    // 渲染表格
-    function renderTable(data, fallbackKey = null) {
-        const tbody = document.getElementById('tableBody');
-        const meta = document.getElementById('resultMeta');
-        
-        tbody.innerHTML = '';
-
-        // 提示信息处理
-        if (fallbackKey) {
-            meta.innerText = `未查到有效匹配记录，已自动按截取后的编码 [ ${fallbackKey} ] 重新查询，共找到 ${data.length} 条记录`;
-        } else {
-            meta.innerText = `查询完成，共找到 ${data.length} 条符合条件的记录`;
-        }
-
-        if (data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="no-data">未查到匹配的商品信息</td></tr>`;
-            return;
-        }
-
-        data.forEach(item => {
-            const tr = document.createElement('tr');
-
-            // 判断终止日期是否等于 2100-12-31
-            const isTargetDate = item.zzrq === "2100-12-31";
-            const dateClass = isTargetDate ? 'class="date-green"' : '';
-
-            // 特殊标识转换规则 (tsbs: 1 -> 征税(红), 2 -> 免税(黄))
-            let tsbsHtml = '<span class="tag-none">-</span>';
-            if (String(item.tsbs) === "1") {
-                tsbsHtml = '<span class="tag tag-tax">征税</span>';
-            } else if (String(item.tsbs) === "2") {
-                tsbsHtml = '<span class="tag tag-free">免税</span>';
+        // 特殊标识映射转换
+        function formatTsFlag(flag) {
+            const flagStr = String(flag).trim();
+            if (flagStr === '1') {
+                return '<span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">征税</span>';
+            } else if (flagStr === '2') {
+                return '<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">免税</span>';
             }
-
-            // 格式化税率显示
-            const zslText = item.zsl !== undefined && item.zsl !== "" ? `${item.zsl}%` : '-';
-            const tslText = item.tsl !== undefined && item.tsl !== "" ? `${item.tsl}%` : '-';
-
-            tr.innerHTML = `
-                <td><strong>${item.bm || '-'}</strong></td>
-                <td ${dateClass}>${item.qsrq || '-'}</td>
-                <td ${dateClass}>${item.zzrq || '-'}</td>
-                <td>${item.name || '-'}</td>
-                <td>${zslText}</td>
-                <td>${tslText}</td>
-                <td>${tsbsHtml}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    // 重置页面状态为默认空状态
-    function resetToDefaultState(msg = '请在上方输入查询条件并点击查询') {
-        document.getElementById('searchInput').value = '';
-        document.getElementById('resultMeta').innerText = msg;
-        document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" class="no-data">暂无数据，请输入搜索条件后查询</td></tr>`;
-    }
-
-    // 事件绑定：点击查询按钮
-    document.getElementById('searchBtn').addEventListener('click', handleSearch);
-    
-    // 事件绑定：键盘按 Enter 键触发查询
-    document.getElementById('searchInput').addEventListener('keyup', (e) => {
-        if (e.key === 'Enter') {
-            handleSearch();
+            return flag !== null && flag !== undefined ? flag : '-';
         }
-    });
 
-    // 事件绑定：点击重置按钮
-    document.getElementById('resetBtn').addEventListener('click', () => {
-        resetToDefaultState();
-    });
-</script>
+        // 格式化数据空值
+        function formatValue(val) {
+            return (val !== null && val !== undefined && val !== '') ? val : '-';
+        }
 
+        // 查询处理主函数
+        async function handleSearch() {
+            const keyword = document.getElementById('searchInput').value.trim();
+            const resultBody = document.getElementById('resultBody');
+            const searchBtn = document.getElementById('searchBtn');
+            const statusMessage = document.getElementById('statusMessage');
+
+            // 隐藏状态提示
+            statusMessage.classList.add('hidden');
+
+            // UI 加载状态
+            searchBtn.disabled = true;
+            searchBtn.innerText = '查询中...';
+            resultBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="p-8 text-center text-gray-500">
+                        <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2 vertical-middle"></div>
+                        数据加载中...
+                    </td>
+                </tr>
+            `;
+
+            try {
+                // 构建查询：同时匹配 CODE（编码） 或 NAME（名称）
+                let query = supabaseClient.from(TABLE_NAME).select('CODE, ST_DATE, END_DATE, NAME, ZSSL_SET, TSL, TSFLAG');
+
+                if (keyword) {
+                    // ilike 表示不区分大小写的模糊匹配
+                    query = query.or(`CODE.ilike.%${keyword}%,NAME.ilike.%${keyword}%`);
+                } else {
+                    // 如果搜索框为空，默认查询前 50 条
+                    query = query.limit(50);
+                }
+
+                const { data, error } = await query;
+
+                if (error) {
+                    throw error;
+                }
+
+                // 渲染数据
+                if (!data || data.length === 0) {
+                    resultBody.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="p-8 text-center text-gray-400">未查询到符合条件的数据</td>
+                        </tr>
+                    `;
+                } else {
+                    resultBody.innerHTML = data.map(item => {
+                        // 判断终止日期是否为 2100-12-31（包含了对字符串和标准日期的兼容判断）
+                        const endDateStr = String(item.END_DATE || '');
+                        const isTargetEndDate = endDateStr.includes('2100-12-31');
+                        
+                        // 如果是 2100-12-31，设置绿色高亮文字样式；否则使用普通样式
+                        const dateStyleClass = isTargetEndDate ? 'text-green-600 font-semibold' : '';
+
+                        return `
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="p-3 font-mono font-medium text-gray-800">${formatValue(item.CODE)}</td>
+                                <td class="p-3 ${dateStyleClass}">${formatValue(item.ST_DATE)}</td>
+                                <td class="p-3 ${dateStyleClass}">${formatValue(item.END_DATE)}</td>
+                                <td class="p-3 font-medium text-gray-800">${formatValue(item.NAME)}</td>
+                                <td class="p-3">${formatValue(item.ZSSL_SET)}</td>
+                                <td class="p-3">${formatValue(item.TSL)}</td>
+                                <td class="p-3">${formatTsFlag(item.TSFLAG)}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+            } catch (err) {
+                console.error('查询出错:', err);
+                statusMessage.className = 'mb-4 p-3 rounded text-sm bg-red-100 text-red-700 block';
+                statusMessage.innerText = `查询失败: ${err.message || '请检查表名或 Supabase RLS 权限设置'}`;
+                resultBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-red-400">加载失败，请重试</td>
+                    </tr>
+                `;
+            } finally {
+                // 恢复按钮状态
+                searchBtn.disabled = false;
+                searchBtn.innerText = '查询';
+            }
+        }
+    </script>
 </body>
 </html>
