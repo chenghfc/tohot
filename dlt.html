@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超级大乐透 - 号码管理与开奖比对</title>
+    <!-- 引入 Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --red-ball: #e74c3c;
+            --blue-ball: #3498db;
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+            font-size: 1.25rem;
+        }
+
+        .ball {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            margin: 0 3px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .ball-red { background-color: var(--red-ball); }
+        .ball-blue { background-color: var(--blue-ball); }
+
+        /* 命中开奖号码高亮外框 */
+        .ball-hit {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 2px #f1c40f, 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        .input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .input-group input {
+            width: 45px;
+            height: 36px;
+            text-align: center;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        .input-group input.red-input { border-color: var(--red-ball); color: var(--red-ball); font-weight: bold; }
+        .input-group input.blue-input { border-color: var(--blue-ball); color: var(--blue-ball); font-weight: bold; }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.85; }
+
+        .btn-primary { background-color: #27ae60; color: white; }
+        .btn-blue { background-color: #2980b9; color: white; }
+        .btn-danger { background-color: #e74c3c; color: white; padding: 4px 10px; font-size: 12px; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        th { background-color: #f8f9fa; color: #666; font-weight: 600; }
+
+        .draw-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 680px) {
+            .draw-grid { grid-template-columns: 1fr; }
+        }
+
+        .draw-card {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 12px 15px;
+            border-radius: 6px;
+        }
+
+        .draw-card.latest {
+            border-left-color: #e74c3c;
+            background: #fef9e7;
+        }
+
+        .draw-info-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 6px;
+        }
+
+        .draw-pool-text {
+            font-size: 12px;
+            color: #e67e22;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+
+        .badge-win { background: #e8f8f5; color: #27ae60; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+        .badge-none { color: #999; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 style="text-align: center; color: #2c3e50; margin-bottom: 24px;">超级大乐透投注与中奖比对</h1>
+
+    <!-- 1. 新增号码 -->
+    <div class="card">
+        <h2>新增单式投注号码</h2>
+        <p style="font-size: 13px; color: #666;">请输入前区5个号码（01-35）及后区2个号码（01-12）：</p>
+        <div class="input-group" id="numberInputs">
+            <span style="color: var(--red-ball); font-weight: bold;">前区:</span>
+            <input type="text" maxlength="2" class="red-input" placeholder="01">
+            <input type="text" maxlength="2" class="red-input" placeholder="02">
+            <input type="text" maxlength="2" class="red-input" placeholder="03">
+            <input type="text" maxlength="2" class="red-input" placeholder="04">
+            <input type="text" maxlength="2" class="red-input" placeholder="05">
+            <span style="color: var(--blue-ball); font-weight: bold; margin-left: 10px;">后区:</span>
+            <input type="text" maxlength="2" class="blue-input" placeholder="01">
+            <input type="text" maxlength="2" class="blue-input" placeholder="02">
+            <button class="btn-primary" onclick="saveSingleBet()">保存该注号码</button>
+        </div>
+    </div>
+
+    <!-- 2. 近期开奖情况 (显示最新期与上一期) -->
+    <div class="card">
+        <h2>近期开奖信息 (近2期)</h2>
+        <button class="btn-blue" id="btnFetchDraw" onclick="fetchLatestDraw()">点击查询最新开奖</button>
+        
+        <div id="drawResultArea" style="display: none;">
+            <div class="draw-grid">
+                <!-- 最新一期 -->
+                <div class="draw-card latest">
+                    <div class="draw-info-title">最新开奖：第 <span id="latestPeriod">--</span> 期 (<span id="latestDate">--</span>)</div>
+                    <div id="latestBalls"></div>
+                    <div class="draw-pool-text">本期奖池余额: <span id="latestPool">--</span></div>
+                </div>
+                <!-- 上一期（奖池判定依据） -->
+                <div class="draw-card">
+                    <div class="draw-info-title">上一期：第 <span id="prevPeriod">--</span> 期 (<span id="prevDate">--</span>)</div>
+                    <div id="prevBalls"></div>
+                    <div class="draw-pool-text">
+                        上一期奖池: <span id="prevPool">--</span>
+                        <br>
+                        <span id="poolStatusTag" style="font-size:11px;"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 我的投注列表 & 中奖比对结果 -->
+    <div class="card">
+        <h2>我的投注号码及中奖比对</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 50px;">序号</th>
+                    <th>投注号码 (前区 + 后区)</th>
+                    <th>匹配情况</th>
+                    <th>奖等</th>
+                    <th>中奖金额</th>
+                    <th style="width: 70px;">操作</th>
+                </tr>
+            </thead>
+            <tbody id="betsTableBody">
+                <tr><td colspan="6" style="text-align: center; color: #999;">正在加载已保存的号码...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Supabase 参数配置
+    const SUPABASE_URL = 'https://iavxzvsceqhqottgdfel.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_leAmINkxNXWip3g4mnc77A_YAn2OGLM';
+    const FUNCTION_URL = 'https://iavxzvsceqhqottgdfel.supabase.co/functions/v1/get-dlt-latest';
+
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let mySavedBets = [];
+    let latestDrawData = null;   // 最新一期
+    let previousDrawData = null; // 上一期
+    let isHighPool = false;      // 上一期奖池是否 >= 8 亿元
+
+    window.onload = function() {
+        loadSavedBets();
+    };
+
+    function pad(num) {
+        return String(num).padStart(2, '0');
+    }
+
+    // 1. 从 Supabase 加载数据库中保存的号码
+    async function loadSavedBets() {
+        try {
+            const { data, error } = await db.from('dlt').select('*').order('id', { ascending: false });
+            if (error) throw error;
+            mySavedBets = data || [];
+            renderBetsTable();
+        } catch (err) {
+            console.error('加载号码失败:', err);
+            alert('数据库加载失败，请确保已在 Supabase 运行建表 SQL。');
+        }
+    }
+
+    // 2. 保存新增的单式投注号码
+    async function saveSingleBet() {
+        const redInputs = document.querySelectorAll('.red-input');
+        const blueInputs = document.querySelectorAll('.blue-input');
+
+        let front = [];
+        let back = [];
+
+        for (let input of redInputs) {
+            let val = parseInt(input.value.trim(), 10);
+            if (isNaN(val) || val < 1 || val > 35) {
+                alert('请在红球区正确输入 1-35 之间的数字');
+                return;
+            }
+            front.push(pad(val));
+        }
+
+        for (let input of blueInputs) {
+            let val = parseInt(input.value.trim(), 10);
+            if (isNaN(val) || val < 1 || val > 12) {
+                alert('请在蓝球区正确输入 1-12 之间的数字');
+                return;
+            }
+            back.push(pad(val));
+        }
+
+        if (new Set(front).size !== 5) { alert('前区5个号码不能重复'); return; }
+        if (new Set(back).size !== 2) { alert('后区2个号码不能重复'); return; }
+
+        front.sort((a, b) => a.localeCompare(b));
+        back.sort((a, b) => a.localeCompare(b));
+
+        try {
+            const { error } = await db.from('dlt').insert([
+                { front_numbers: front, back_numbers: back }
+            ]);
+
+            if (error) throw error;
+
+            redInputs.forEach(i => i.value = '');
+            blueInputs.forEach(i => i.value = '');
+
+            alert('号码保存成功！');
+            loadSavedBets();
+        } catch (err) {
+            console.error('保存失败:', err);
+            alert('保存失败: ' + err.message);
+        }
+    }
+
+    // 删除已保存的号码
+    async function deleteBet(id) {
+        if (!confirm('确定要删除这注号码吗？')) return;
+        try {
+            const { error } = await db.from('dlt').delete().eq('id', id);
+            if (error) throw error;
+            loadSavedBets();
+        } catch (err) {
+            alert('删除失败: ' + err.message);
+        }
+    }
+
+    // 3. 调用 Supabase Edge Function 获取最新两期开奖
+    async function fetchLatestDraw() {
+        const btn = document.getElementById('btnFetchDraw');
+        btn.innerText = "数据拉取中...";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(FUNCTION_URL);
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || '获取开奖数据失败');
+            }
+
+            latestDrawData = data.latest;
+            previousDrawData = data.previous || data.latest;
+
+            // 根据【上一期】奖池金额判定是否 >= 8 亿元
+            let prevPoolNum = 0;
+            if (previousDrawData.rawPool) {
+                prevPoolNum = parseFloat(previousDrawData.rawPool);
+            } else if (previousDrawData.pool) {
+                prevPoolNum = parseFloat(previousDrawData.pool.replace(/[^0-9.]/g, ''));
+                if (previousDrawData.pool.includes('亿')) prevPoolNum *= 100000000;
+            }
+
+            isHighPool = prevPoolNum >= 800000000;
+
+            displayDrawInfo();
+            renderBetsTable();
+
+        } catch (err) {
+            console.error('获取开奖信息失败:', err);
+            alert('获取开奖数据失败: ' + err.message);
+        } finally {
+            btn.innerText = "点击查询最新开奖";
+            btn.disabled = false;
+        }
+    }
+
+    // 渲染开奖卡片信息
+    function displayDrawInfo() {
+        if (!latestDrawData) return;
+        document.getElementById('drawResultArea').style.display = 'block';
+
+        // 最新一期
+        document.getElementById('latestPeriod').innerText = latestDrawData.period;
+        document.getElementById('latestDate').innerText = latestDrawData.date;
+        document.getElementById('latestPool').innerText = latestDrawData.pool;
+
+        let latestHtml = '';
+        latestDrawData.front.forEach(n => { latestHtml += `<span class="ball ball-red">${n}</span>`; });
+        latestDrawData.back.forEach(n => { latestHtml += `<span class="ball ball-blue">${n}</span>`; });
+        document.getElementById('latestBalls').innerHTML = latestHtml;
+
+        // 上一期
+        document.getElementById('prevPeriod').innerText = previousDrawData.period;
+        document.getElementById('prevDate').innerText = previousDrawData.date;
+        document.getElementById('prevPool').innerText = previousDrawData.pool;
+
+        let prevHtml = '';
+        previousDrawData.front.forEach(n => { prevHtml += `<span class="ball ball-red">${n}</span>`; });
+        previousDrawData.back.forEach(n => { prevHtml += `<span class="ball ball-blue">${n}</span>`; });
+        document.getElementById('prevBalls').innerHTML = prevHtml;
+
+        const tag = document.getElementById('poolStatusTag');
+        if (isHighPool) {
+            tag.innerText = "📌 上一期奖池 ≥ 8 亿元，适用高奖金标准 (三等奖6666元等)";
+            tag.style.color = "#e74c3c";
+        } else {
+            tag.innerText = "📌 上一期奖池 < 8 亿元，适用常规奖金标准 (三等奖5000元等)";
+            tag.style.color = "#27ae60";
+        }
+    }
+
+    // 4. 中奖比对规则（取上一期奖池判断三至七等奖金）
+    function calculatePrize(fMatched, bMatched) {
+        if (fMatched === 5 && bMatched === 2) {
+            return { name: '一等奖', amount: '浮动奖金' };
+        } else if (fMatched === 5 && bMatched === 1) {
+            return { name: '二等奖', amount: '浮动奖金' };
+        } else if ((fMatched === 5 && bMatched === 0) || (fMatched === 4 && bMatched === 2)) {
+            return { name: '三等奖', amount: isHighPool ? '6666 元' : '5000 元' };
+        } else if (fMatched === 4 && bMatched === 1) {
+            return { name: '四等奖', amount: isHighPool ? '380 元' : '300 元' };
+        } else if ((fMatched === 4 && bMatched === 0) || (fMatched === 3 && bMatched === 2)) {
+            return { name: '五等奖', amount: isHighPool ? '200 元' : '150 元' };
+        } else if ((fMatched === 3 && bMatched === 1) || (fMatched === 2 && bMatched === 2)) {
+            return { name: '六等奖', amount: isHighPool ? '18 元' : '15 元' };
+        } else if (
+            (fMatched === 3 && bMatched === 0) || 
+            (fMatched === 2 && bMatched === 1) || 
+            (fMatched === 1 && bMatched === 2) || 
+            (fMatched === 0 && bMatched === 2)
+        ) {
+            return { name: '七等奖', amount: isHighPool ? '7 元' : '5 元' };
+        } else {
+            return { name: '未中奖', amount: '0 元' };
+        }
+    }
+
+    // 5. 渲染我的投注列表与中奖比对表格
+    function renderBetsTable() {
+        const tbody = document.getElementById('betsTableBody');
+        tbody.innerHTML = '';
+
+        if (mySavedBets.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">暂无保存的投注号码，请在上方添加。</td></tr>';
+            return;
+        }
+
+        mySavedBets.forEach((item, index) => {
+            const tr = document.createElement('tr');
+
+            // 兼容可能存在的不同列名
+            const frontList = item.front_numbers || item.front || [];
+            const backList = item.back_numbers || item.back || [];
+
+            let ballsHtml = '';
+            let fMatched = 0;
+            let bMatched = 0;
+
+            // 前区球渲染 + 命中高亮
+            frontList.forEach(n => {
+                const isHit = latestDrawData && latestDrawData.front.includes(n);
+                if (isHit) fMatched++;
+                ballsHtml += `<span class="ball ball-red ${isHit ? 'ball-hit' : ''}">${n}</span>`;
+            });
+
+            // 后区球渲染 + 命中高亮
+            backList.forEach(n => {
+                const isHit = latestDrawData && latestDrawData.back.includes(n);
+                if (isHit) bMatched++;
+                ballsHtml += `<span class="ball ball-blue ${isHit ? 'ball-hit' : ''}">${n}</span>`;
+            });
+
+            let matchText = '--';
+            let prizeName = '--';
+            let prizeAmount = '--';
+
+            if (latestDrawData) {
+                matchText = `红球 ${fMatched} + 蓝球 ${bMatched}`;
+                let res = calculatePrize(fMatched, bMatched);
+
+                if (res.name === '未中奖') {
+                    prizeName = `<span class="badge-none">未中奖</span>`;
+                    prizeAmount = '0 元';
+                } else {
+                    prizeName = `<span class="badge-win">${res.name}</span>`;
+                    prizeAmount = `<strong style="color: #e74c3c;">${res.amount}</strong>`;
+                }
+            }
+
+            tr.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${ballsHtml}</td>
+                <td>${matchText}</td>
+                <td>${prizeName}</td>
+                <td>${prizeAmount}</td>
+                <td><button class="btn-danger" onclick="deleteBet(${item.id})">删除</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+</script>
+
+</body>
+</html>
