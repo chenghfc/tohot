@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>社保缴费数据汇总工具</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft Yahei", sans-serif; }
+body { background: #f5f7fa; padding: 24px; }
+.container { max-width: 1400px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 24px; }
+h1 { text-align: center; color: #2c3e50; margin-bottom: 24px; font-size: 24px; }
+.status-bar { padding: 10px 16px; background: #e8f4fd; border-radius: 6px; margin-bottom: 16px; color: #1976d2; font-size: 14px; text-align: center; }
+
+/* 操作说明区域 */
+.instruction-box { background: #f0f7ff; border: 1px solid #cce5ff; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; }
+.instruction-title { font-size: 15px; font-weight: bold; color: #004085; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.instruction-list { margin-left: 20px; font-size: 13px; color: #495057; line-height: 1.8; }
+.instruction-list b { color: #212529; }
+.badge { display: inline-block; padding: 1px 6px; background: #e2e3e5; color: #383d41; border-radius: 3px; font-size: 11px; margin: 0 2px; }
+
+/* 上传区域 */
+.upload-area { border: 2px dashed #c0c4cc; border-radius: 8px; padding: 30px; text-align: center; margin-bottom: 20px; cursor: pointer; transition: all 0.3s; }
+.upload-area:hover, .upload-area.dragover { border-color: #409eff; background: #ecf5ff; }
+.upload-area p { color: #606266; font-size: 15px; margin-top: 8px; }
+.upload-area .icon { font-size: 40px; color: #909399; }
+#fileInput { display: none; }
+
+/* 按钮组 */
+.btn-group { text-align: center; margin-bottom: 24px; }
+.btn { padding: 10px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin: 0 8px; }
+.btn-primary { background: #409eff; color: #fff; }
+.btn-primary:disabled { background: #a0cfff; cursor: not-allowed; }
+.btn-success { background: #67c23a; color: #fff; }
+.btn-success:disabled { background: #b3e19d; cursor: not-allowed; }
+
+/* 统计卡片 */
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 20px; }
+.stat-card { background: #f8f9fa; padding: 16px; border-radius: 8px; text-align: center; }
+.stat-card .label { color: #909399; font-size: 14px; margin-bottom: 8px; }
+.stat-card .value { color: #2c3e50; font-size: 20px; font-weight: bold; }
+
+/* 日志 */
+.log-area { background: #f8f9fa; border: 1px solid #eaecef; border-radius: 6px; padding: 12px; margin-bottom: 20px; max-height: 180px; overflow-y: auto; font-size: 13px; font-family: monospace; }
+.log-line { margin-bottom: 4px; }
+.log-warn { color: #e6a23c; }
+.log-error { color: #f56c6c; }
+.log-success { color: #67c23a; }
+
+/* 表格标题与包裹层 */
+.section-title { font-size: 17px; font-weight: bold; color: #2c3e50; margin: 24px 0 12px 0; border-left: 4px solid #409eff; padding-left: 10px; }
+.section-title.warn { border-left-color: #e6a23c; }
+.table-wrap { overflow-x: auto; margin-bottom: 24px; border: 1px solid #eaecef; border-radius: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { border: 1px solid #eaecef; padding: 8px 6px; text-align: center; white-space: nowrap; }
+th { background: #409eff; color: #fff; font-weight: 500; position: sticky; top: 0; }
+th.th-warn { background: #e6a23c; }
+tr:nth-child(even) { background: #fafafa; }
+.total-row { background: #f0f9eb !important; font-weight: bold; }
+.total-row-warn { background: #fdf6ec !important; font-weight: bold; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+.tag-normal { background: #f0f9eb; color: #67c23a; border: 1px solid #c2e7b0; }
+.tag-adjust { background: #fdf6ec; color: #e6a23c; border: 1px solid #f5dab1; }
+.empty { text-align: center; padding: 40px; color: #909399; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>📊 社保缴费数据汇总工具</h1>
+<div class="status-bar" id="statusBar">正在加载必要组件，请稍候...</div>
+
+<!-- 操作说明区域 -->
+<div class="instruction-box">
+    <div class="instruction-title">📖 操作说明</div>
+    <ol class="instruction-list">
+        <li>上传的表格，从电子税务局→地方特色→社保业务→单位社保费→单位申报明细查询，将涉及月份职工明细分别导出（每个月医保社保各一张表）</li>
+        <li>同一属期的5个险种将自动整合成一行，并带出单位缴费合计和个人缴费合计</li>
+        <li>同一属期存在正常缴费和基数补差时，按申报日期分别生成</li>
+        <li>基数补缴统计表将针对同一员工、相同申报日期的补缴金额进行合并求和</li>
+    </ol>
+</div>
+
+<!-- 1. 选择导入文件区域 -->
+<div class="upload-area" id="uploadArea">
+    <div class="icon">📁</div>
+    <p id="uploadText">点击或拖拽上传Excel文件（支持.xlsx/.xls，可多选）</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+</div>
+
+<!-- 2. 操作按钮 -->
+<div class="btn-group">
+    <button class="btn btn-primary" id="processBtn" disabled>开始汇总处理</button>
+    <button class="btn btn-success" id="exportBtn" disabled>导出Excel</button>
+</div>
+
+<!-- 统计概览 -->
+<div class="stats" id="statsArea" style="display:none;">
+    <div class="stat-card">
+        <div class="label">参保人数</div>
+        <div class="value" id="statPerson">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">费款属期</div>
+        <div class="value" id="statPeriod">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">正常应缴</div>
+        <div class="value" id="statNormal">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">基数补缴</div>
+        <div class="value" id="statAdjust">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">总金额(元)</div>
+        <div class="value" id="statTotal">0.00</div>
+    </div>
+</div>
+
+<!-- 日志区域 -->
+<div class="log-area" id="logArea" style="display:none;"></div>
+
+<!-- 结果直接展示区域（多表格） -->
+<div id="outputArea">
+    <div class="empty">请上传Excel文件后点击“开始汇总处理”</div>
+</div>
+</div>
+
+<script>
+function loadScript(url, name) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = url;
+        script.onload = () => {
+            addLog(`✓ ${name} 加载完成`, 'success');
+            resolve();
+        };
+        script.onerror = () => reject(new Error(`${name} 加载失败，请检查网络连接`));
+        document.head.appendChild(script);
+    });
+}
+
+const statusBar = document.getElementById('statusBar');
+const fileInput = document.getElementById('fileInput');
+const uploadArea = document.getElementById('uploadArea');
+const uploadText = document.getElementById('uploadText');
+const processBtn = document.getElementById('processBtn');
+const exportBtn = document.getElementById('exportBtn');
+const logArea = document.getElementById('logArea');
+const outputArea = document.getElementById('outputArea');
+const statsArea = document.getElementById('statsArea');
+
+let selectedFiles = [];
+let summaryData = [];
+
+function addLog(text, type = '') {
+    const div = document.createElement('div');
+    div.className = `log-line ${type ? 'log-' + type : ''}`;
+    div.textContent = text;
+    logArea.appendChild(div);
+    logArea.scrollTop = logArea.scrollHeight;
+}
+
+async function initLibs() {
+    try {
+        statusBar.textContent = '正在加载数据处理组件...';
+        await Promise.all([
+            loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', 'XLSX数据解析库'),
+            loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', 'ExcelJS导出库')
+        ]);
+        statusBar.textContent = '✓ 组件已就绪，请上传文件进行处理';
+        processBtn.disabled = false;
+    } catch (e) {
+        statusBar.textContent = '❌ 组件加载失败：' + e.message + '，请刷新页面重试或检查网络';
+    }
+}
+
+// 文件选择事件
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(files) {
+    for (let file of files) {
+        if (!file.name.match(/\.(xlsx|xls)$/i)) continue;
+        if (!selectedFiles.find(f => f.name === file.name)) {
+            selectedFiles.push(file);
+        }
+    }
+    if (selectedFiles.length > 0) {
+        uploadText.innerHTML = `已选择 <b>${selectedFiles.length}</b> 个文件（点击可继续追加，点击下方“开始汇总处理”执行计算）`;
+    }
+}
+
+const COL = {
+    NAME: 1,          // B列 职工姓名
+    IDCARD: 3,        // D列 职工身份证
+    INS_TYPE: 4,      // E列 险种
+    PERIOD: 5,        // F列 费款所属期
+    BASE: 7,          // H列 缴费基数
+    UNIT_AMT: 9,      // J列 单位缴费
+    DECLARE_DATE: 11, // L列 申报日期
+    PERSON_AMT: 16    // Q列 个人缴费
+};
+
+function parseNumber(val) {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return val;
+    return parseFloat(String(val).replace(/,/g, '')) || 0;
+}
+
+function parseDate(val) {
+    if (val === null || val === undefined || val === '') return '';
+    if (typeof val === 'number') {
+        const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+    let str = String(val).trim();
+    if (/^\d{8}$/.test(str)) {
+        return `${str.slice(0, 4)}-${str.slice(4, 6)}-${str.slice(6, 8)}`;
+    }
+    return str;
+}
+
+function getInsuranceType(name) {
+    name = String(name || '').trim();
+    if (name.includes('养老')) return 'yanglao';
+    if (name.includes('失业')) return 'shiye';
+    if (name.includes('工伤')) return 'gongshang';
+    if (name.includes('生育')) return 'shengyu';
+    if (name.includes('医疗') || name.includes('医保')) return 'yiliao';
+    return null;
+}
+
+function fixSheetRef(ws) {
+    if (!ws['!ref']) return ws;
+    let maxRow = 0, maxCol = 0;
+    Object.keys(ws).forEach(key => {
+        if (key.startsWith('!')) return;
+        const match = key.match(/^([A-Z]+)(\d+)$/);
+        if (!match) return;
+        const col = XLSX.utils.decode_col(match[1]);
+        const row = parseInt(match[2]);
+        if (row > maxRow) maxRow = row;
+        if (col > maxCol) maxCol = col;
+    });
+    const newRef = XLSX.utils.encode_range({ s: {c:0,r:0}, e: {c:maxCol, r:maxRow-1} });
+    if (ws['!ref'] !== newRef) {
+        ws['!ref'] = newRef;
+    }
+    return ws;
+}
+
+async function processFiles() {
+    if (selectedFiles.length === 0) {
+        alert('请先上传Excel文件！');
+        return;
+    }
+
+    summaryData = [];
+    logArea.innerHTML = '';
+    logArea.style.display = 'block';
+    outputArea.innerHTML = '';
+    exportBtn.disabled = true;
+    addLog('===== 开始处理 =====');
+
+    const rawRecords = [];
+
+    for (let file of selectedFiles) {
+        addLog(`读取文件: ${file.name}`);
+        try {
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: 'array' });
+            for (let sheetName of wb.SheetNames) {
+                const ws = fixSheetRef(wb.Sheets[sheetName]);
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                
+                let fileRecordCount = 0;
+                for (let i = 2; i < rows.length; i++) {
+                    const row = rows[i];
+                    const name = String(row[COL.NAME] || '').trim();
+                    const idcard = String(row[COL.IDCARD] || '').trim();
+                    const insTypeName = String(row[COL.INS_TYPE] || '').trim();
+                    const period = String(row[COL.PERIOD] || '').trim();
+                    const declareDate = parseDate(row[COL.DECLARE_DATE]);
+                    const base = parseNumber(row[COL.BASE]);
+                    const unitAmt = parseNumber(row[COL.UNIT_AMT]);
+                    const personAmt = parseNumber(row[COL.PERSON_AMT]);
+
+                    if (!name || !idcard || !insTypeName || !period) continue;
+
+                    const insType = getInsuranceType(insTypeName);
+                    if (!insType) continue;
+
+                    const rowText = row.join(' ');
+                    const isExplicitAdjust = /补缴|基数调整|补差|差额|调整补/i.test(rowText);
+
+                    rawRecords.push({ 
+                        name, idcard, period, declareDate, insType, base, unitAmt, personAmt,
+                        isExplicitAdjust
+                    });
+                    fileRecordCount++;
+                }
+                addLog(`  ↳ ${sheetName}: 解析有效记录 ${fileRecordCount} 条`);
+            }
+        } catch (e) {
+            addLog(`❌ 读取失败: ${e.message}`, 'error');
+        }
+    }
+
+    if (rawRecords.length === 0) {
+        addLog('⚠ 未读取到任何有效数据！请检查Excel格式', 'error');
+        outputArea.innerHTML = '<div class="empty">未识别到有效数据，请检查文件格式后重试</div>';
+        return;
+    }
+
+    // 统计基准基数（跨申报日期对比）
+    const personPeriodMax = {};
+    const personGlobalMax = {};
+    rawRecords.forEach(r => {
+        const ppKey = `${r.idcard}_${r.period}`;
+        if (!personPeriodMax[ppKey]) personPeriodMax[ppKey] = { renshe: 0, yibao: 0 };
+        if (!personGlobalMax[r.idcard]) personGlobalMax[r.idcard] = { renshe: 0, yibao: 0 };
+
+        const isRs = ['yanglao','shiye','gongshang'].includes(r.insType);
+        const isYb = ['yiliao','shengyu'].includes(r.insType);
+
+        if (isRs && r.base > personPeriodMax[ppKey].renshe) personPeriodMax[ppKey].renshe = r.base;
+        if (isYb && r.base > personPeriodMax[ppKey].yibao) personPeriodMax[ppKey].yibao = r.base;
+
+        if (isRs && r.base > personGlobalMax[r.idcard].renshe) personGlobalMax[r.idcard].renshe = r.base;
+        if (isYb && r.base > personGlobalMax[r.idcard].yibao) personGlobalMax[r.idcard].yibao = r.base;
+    });
+
+    // 聚合分组
+    const groupMap = {};
+    rawRecords.forEach(r => {
+        const key = `${r.idcard}_${r.period}_${r.declareDate}_${r.base.toFixed(2)}`;
+        if (!groupMap[key]) {
+            groupMap[key] = {
+                name: r.name,
+                idcard: r.idcard,
+                period: r.period,
+                declareDate: r.declareDate,
+                base: r.base,
+                isExplicitAdjust: false,
+                records: []
+            };
+        }
+        if (r.isExplicitAdjust) groupMap[key].isExplicitAdjust = true;
+        groupMap[key].records.push(r);
+    });
+
+    for (let key in groupMap) {
+        const group = groupMap[key];
+        const ppKey = `${group.idcard}_${group.period}`;
+        const refMax = personPeriodMax[ppKey] || personGlobalMax[group.idcard];
+
+        const row = {
+            name: group.name,
+            idcard: group.idcard,
+            period: group.period,
+            declareDate: group.declareDate,
+            payType: '',
+            rensheBase: 0,
+            yanglaoUnit: 0, yanglaoPerson: 0,
+            shiyeUnit: 0, shiyePerson: 0,
+            gongshangUnit: 0,
+            yibaoBase: 0,
+            yiliaoUnit: 0, yiliaoPerson: 0,
+            shengyuUnit: 0,
+            unitTotal: 0, personTotal: 0, total: 0
+        };
+
+        let isRs = false, isYb = false;
+        group.records.forEach(r => {
+            if (['yanglao','shiye','gongshang'].includes(r.insType)) isRs = true;
+            if (['yiliao','shengyu'].includes(r.insType)) isYb = true;
+        });
+
+        if (group.isExplicitAdjust) {
+            row.payType = '基数调整补缴';
+        } else {
+            let isNormal = true;
+            if (isRs && refMax.renshe > 0 && Math.abs(group.base - refMax.renshe) >= 0.01) isNormal = false;
+            if (isYb && refMax.yibao > 0 && Math.abs(group.base - refMax.yibao) >= 0.01) isNormal = false;
+            row.payType = isNormal ? '正常应缴' : '基数调整补缴';
+        }
+
+        group.records.forEach(r => {
+            switch(r.insType) {
+                case 'yanglao':
+                    row.rensheBase = r.base;
+                    row.yanglaoUnit = r.unitAmt;
+                    row.yanglaoPerson = r.personAmt;
+                    break;
+                case 'shiye':
+                    row.rensheBase = r.base;
+                    row.shiyeUnit = r.unitAmt;
+                    row.shiyePerson = r.personAmt;
+                    break;
+                case 'gongshang':
+                    row.rensheBase = r.base;
+                    row.gongshangUnit = r.unitAmt;
+                    break;
+                case 'yiliao':
+                    row.yibaoBase = r.base;
+                    row.yiliaoUnit = r.unitAmt;
+                    row.yiliaoPerson = r.personAmt;
+                    break;
+                case 'shengyu':
+                    row.yibaoBase = r.base;
+                    row.shengyuUnit = r.unitAmt;
+                    break;
+            }
+        });
+
+        row.unitTotal = row.yanglaoUnit + row.shiyeUnit + row.gongshangUnit + row.yiliaoUnit + row.shengyuUnit;
+        row.personTotal = row.yanglaoPerson + row.shiyePerson + row.yiliaoPerson;
+        row.total = row.unitTotal + row.personTotal;
+
+        summaryData.push(row);
+    }
+
+    // 统计概览
+    const persons = new Set(summaryData.map(r => r.idcard)).size;
+    const periods = new Set(summaryData.map(r => r.period)).size;
+    const normalCount = summaryData.filter(r => r.payType === '正常应缴').length;
+    const adjustCount = summaryData.filter(r => r.payType === '基数调整补缴').length;
+    const totalAmt = summaryData.reduce((s, r) => s + r.total, 0);
+
+    document.getElementById('statPerson').textContent = persons;
+    document.getElementById('statPeriod').textContent = periods;
+    document.getElementById('statNormal').textContent = normalCount;
+    document.getElementById('statAdjust').textContent = adjustCount;
+    document.getElementById('statTotal').textContent = totalAmt.toFixed(2);
+    statsArea.style.display = 'grid';
+
+    addLog(`汇总完成: 正常应缴 ${normalCount} 笔，基数调整补缴 ${adjustCount} 笔`, adjustCount > 0 ? 'success' : 'warn');
+
+    renderAllTables();
+    exportBtn.disabled = false;
+    addLog('✅ 表格已直接渲染展示在下方！', 'success');
+}
+
+// 页面同时渲染展示多个表格
+function renderAllTables() {
+    let html = '';
+
+    // ==================== 表格 1: 汇总表 ====================
+    html += '<div class="section-title">📋 汇总表明细</div>';
+    html += '<div class="table-wrap"><table><thead><tr>';
+    const headers1 = [
+        '职工姓名','职工身份证','费款所属期','申报日期','缴费类型',
+        '人社缴费基数','养老保险单位缴费','养老保险个人缴费','失业保险单位缴费','失业保险个人缴费','工伤保险单位缴费',
+        '医保缴费基数','医疗保险单位缴费','医疗保险个人缴费','生育保险单位缴费',
+        '单位缴费合计','个人缴费合计','缴费金额合计'
+    ];
+    headers1.forEach(h => html += `<th>${h}</th>`);
+    html += '</tr></thead><tbody>';
+
+    const totals1 = {
+        rensheBase: 0, yanglaoUnit:0, yanglaoPerson:0, shiyeUnit:0, shiyePerson:0, gongshangUnit:0,
+        yibaoBase:0, yiliaoUnit:0, yiliaoPerson:0, shengyuUnit:0,
+        unitTotal:0, personTotal:0, total:0
+    };
+
+    summaryData.forEach(r => {
+        totals1.rensheBase += r.rensheBase;
+        totals1.yanglaoUnit += r.yanglaoUnit;
+        totals1.yanglaoPerson += r.yanglaoPerson;
+        totals1.shiyeUnit += r.shiyeUnit;
+        totals1.shiyePerson += r.shiyePerson;
+        totals1.gongshangUnit += r.gongshangUnit;
+        totals1.yibaoBase += r.yibaoBase;
+        totals1.yiliaoUnit += r.yiliaoUnit;
+        totals1.yiliaoPerson += r.yiliaoPerson;
+        totals1.shengyuUnit += r.shengyuUnit;
+        totals1.unitTotal += r.unitTotal;
+        totals1.personTotal += r.personTotal;
+        totals1.total += r.total;
+
+        html += '<tr>';
+        html += `<td>${r.name}</td>`;
+        html += `<td>${r.idcard}</td>`;
+        html += `<td>${r.period}</td>`;
+        html += `<td>${r.declareDate}</td>`;
+        html += `<td><span class="tag ${r.payType==='正常应缴'?'tag-normal':'tag-adjust'}">${r.payType}</span></td>`;
+        html += `<td>${r.rensheBase.toFixed(2)}</td>`;
+        html += `<td>${r.yanglaoUnit.toFixed(2)}</td>`;
+        html += `<td>${r.yanglaoPerson.toFixed(2)}</td>`;
+        html += `<td>${r.shiyeUnit.toFixed(2)}</td>`;
+        html += `<td>${r.shiyePerson.toFixed(2)}</td>`;
+        html += `<td>${r.gongshangUnit.toFixed(2)}</td>`;
+        html += `<td>${r.yibaoBase.toFixed(2)}</td>`;
+        html += `<td>${r.yiliaoUnit.toFixed(2)}</td>`;
+        html += `<td>${r.yiliaoPerson.toFixed(2)}</td>`;
+        html += `<td>${r.shengyuUnit.toFixed(2)}</td>`;
+        html += `<td>${r.unitTotal.toFixed(2)}</td>`;
+        html += `<td>${r.personTotal.toFixed(2)}</td>`;
+        html += `<td>${r.total.toFixed(2)}</td>`;
+        html += '</tr>';
+    });
+
+    html += '<tr class="total-row">';
+    html += '<td colspan="5">合计</td>';
+    html += `<td>${totals1.rensheBase.toFixed(2)}</td>`;
+    html += `<td>${totals1.yanglaoUnit.toFixed(2)}</td>`;
+    html += `<td>${totals1.yanglaoPerson.toFixed(2)}</td>`;
+    html += `<td>${totals1.shiyeUnit.toFixed(2)}</td>`;
+    html += `<td>${totals1.shiyePerson.toFixed(2)}</td>`;
+    html += `<td>${totals1.gongshangUnit.toFixed(2)}</td>`;
+    html += `<td>${totals1.yibaoBase.toFixed(2)}</td>`;
+    html += `<td>${totals1.yiliaoUnit.toFixed(2)}</td>`;
+    html += `<td>${totals1.yiliaoPerson.toFixed(2)}</td>`;
+    html += `<td>${totals1.shengyuUnit.toFixed(2)}</td>`;
+    html += `<td>${totals1.unitTotal.toFixed(2)}</td>`;
+    html += `<td>${totals1.personTotal.toFixed(2)}</td>`;
+    html += `<td>${totals1.total.toFixed(2)}</td>`;
+    html += '</tr></tbody></table></div>';
+
+    // ==================== 表格 2: 基数补缴统计表 ====================
+    html += '<div class="section-title warn">📑 基数补缴统计表（按员工与相同申报日期求和）</div>';
+    html += '<div class="table-wrap"><table><thead><tr>';
+    const headers2 = ['职工姓名','职工身份证','申报日期','个人补缴合计(元)'];
+    headers2.forEach(h => html += `<th class="th-warn">${h}</th>`);
+    html += '</tr></thead><tbody>';
+
+    const adjustMap = {};
+    let adjustTotal = 0;
+    summaryData.filter(r => r.payType === '基数调整补缴').forEach(r => {
+        const key = `${r.idcard}_${r.name}_${r.declareDate}`;
+        if (!adjustMap[key]) {
+            adjustMap[key] = { 
+                name: r.name, 
+                idcard: r.idcard, 
+                declareDate: r.declareDate, 
+                personTotal: 0 
+            };
+        }
+        adjustMap[key].personTotal += r.personTotal;
+        adjustTotal += r.personTotal;
+    });
+
+    const adjustList = Object.values(adjustMap);
+    if (adjustList.length === 0) {
+        html += '<tr><td colspan="4" style="color:#909399; padding:20px;">无基数补缴数据</td></tr>';
+    } else {
+        adjustList.forEach(item => {
+            html += '<tr>';
+            html += `<td>${item.name}</td>`;
+            html += `<td>${item.idcard}</td>`;
+            html += `<td>${item.declareDate}</td>`;
+            html += `<td style="font-weight:bold; color:#e6a23c;">${item.personTotal.toFixed(2)}</td>`;
+            html += '</tr>';
+        });
+        html += '<tr class="total-row-warn">';
+        html += '<td colspan="3">合计</td>';
+        html += `<td style="color:#e6a23c;">${adjustTotal.toFixed(2)}</td>`;
+        html += '</tr>';
+    }
+
+    html += '</tbody></table></div>';
+    outputArea.innerHTML = html;
+}
+
+async function exportExcel() {
+    addLog('正在生成导出文件...');
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = '社保缴费汇总工具';
+
+    // Sheet1: 汇总表
+    const ws1 = workbook.addWorksheet('汇总表', { views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }] });
+    const headers1 = [
+        '职工姓名','职工身份证','费款所属期','申报日期','缴费类型',
+        '人社缴费基数','养老保险单位缴费','养老保险个人缴费','失业保险单位缴费','失业保险个人缴费','工伤保险单位缴费',
+        '医保缴费基数','医疗保险单位缴费','医疗保险个人缴费','生育保险单位缴费',
+        '单位缴费合计','个人缴费合计','缴费金额合计'
+    ];
+    ws1.columns = headers1.map(h => ({ header: h, key: h, width: 16 }));
+
+    ws1.getRow(1).eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF409EFF' } };
+        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = { top: {style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+    });
+
+    summaryData.forEach(r => {
+        const row = ws1.addRow({
+            '职工姓名': r.name,
+            '职工身份证': r.idcard,
+            '费款所属期': r.period,
+            '申报日期': r.declareDate,
+            '缴费类型': r.payType,
+            '人社缴费基数': r.rensheBase,
+            '养老保险单位缴费': r.yanglaoUnit,
+            '养老保险个人缴费': r.yanglaoPerson,
+            '失业保险单位缴费': r.shiyeUnit,
+            '失业保险个人缴费': r.shiyePerson,
+            '工伤保险单位缴费': r.gongshangUnit,
+            '医保缴费基数': r.yibaoBase,
+            '医疗保险单位缴费': r.yiliaoUnit,
+            '医疗保险个人缴费': r.yiliaoPerson,
+            '生育保险单位缴费': r.shengyuUnit,
+            '单位缴费合计': r.unitTotal,
+            '个人缴费合计': r.personTotal,
+            '缴费金额合计': r.total
+        });
+        row.eachCell(cell => {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = { top: {style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+            if (cell.col >= 6 && cell.col <= 18) {
+                cell.numFmt = '#,##0.00';
+            }
+        });
+    });
+
+    const totals = {
+        rensheBase: 0, yanglaoUnit:0, yanglaoPerson:0, shiyeUnit:0, shiyePerson:0, gongshangUnit:0,
+        yibaoBase:0, yiliaoUnit:0, yiliaoPerson:0, shengyuUnit:0,
+        unitTotal:0, personTotal:0, total:0
+    };
+    summaryData.forEach(r => {
+        totals.rensheBase += r.rensheBase;
+        totals.yanglaoUnit += r.yanglaoUnit;
+        totals.yanglaoPerson += r.yanglaoPerson;
+        totals.shiyeUnit += r.shiyeUnit;
+        totals.shiyePerson += r.shiyePerson;
+        totals.gongshangUnit += r.gongshangUnit;
+        totals.yibaoBase += r.yibaoBase;
+        totals.yiliaoUnit += r.yiliaoUnit;
+        totals.yiliaoPerson += r.yiliaoPerson;
+        totals.shengyuUnit += r.shengyuUnit;
+        totals.unitTotal += r.unitTotal;
+        totals.personTotal += r.personTotal;
+        totals.total += r.total;
+    });
+
+    const totalRow = ws1.addRow({
+        '职工姓名': '合计',
+        '人社缴费基数': totals.rensheBase,
+        '养老保险单位缴费': totals.yanglaoUnit,
+        '养老保险个人缴费': totals.yanglaoPerson,
+        '失业保险单位缴费': totals.shiyeUnit,
+        '失业保险个人缴费': totals.shiyePerson,
+        '工伤保险单位缴费': totals.gongshangUnit,
+        '医保缴费基数': totals.yibaoBase,
+        '医疗保险单位缴费': totals.yiliaoUnit,
+        '医疗保险个人缴费': totals.yiliaoPerson,
+        '生育保险单位缴费': totals.shengyuUnit,
+        '单位缴费合计': totals.unitTotal,
+        '个人缴费合计': totals.personTotal,
+        '缴费金额合计': totals.total
+    });
+    totalRow.getCell(1).value = '合计';
+    ws1.mergeCells(`A${totalRow.number}:E${totalRow.number}`);
+    totalRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F9EB' } };
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = { top: {style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+        if (cell.col >= 6 && cell.col <= 18) {
+            cell.numFmt = '#,##0.00';
+        }
+    });
+
+    // Sheet2: 基数补缴统计
+    const ws2 = workbook.addWorksheet('基数补缴统计', { views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }] });
+    const headers2 = ['职工姓名','职工身份证','申报日期','个人补缴合计'];
+    ws2.columns = headers2.map(h => ({ header: h, key: h, width: 22 }));
+
+    ws2.getRow(1).eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6A23C' } };
+        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = { top: {style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+    });
+
+    const adjustMap = {};
+    let adjustTotal = 0;
+    summaryData.filter(r => r.payType === '基数调整补缴').forEach(r => {
+        const key = `${r.idcard}_${r.name}_${r.declareDate}`;
+        if (!adjustMap[key]) {
+            adjustMap[key] = { 
+                name: r.name, 
+                idcard: r.idcard, 
+                declareDate: r.declareDate, 
+                personTotal: 0 
+            };
+        }
+        adjustMap[key].personTotal += r.personTotal;
+        adjustTotal += r.personTotal;
+    });
+
+    const adjustList = Object.values(adjustMap);
+    adjustList.forEach(item => {
+        const row = ws2.addRow({
+            '职工姓名': item.name,
+            '职工身份证': item.idcard,
+            '申报日期': item.declareDate,
+            '个人补缴合计': item.personTotal
+        });
+        row.eachCell(cell => {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = { top: {style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+            if (cell.col === 4) {
+                cell.numFmt = '#,##0.00';
+            }
+        });
+    });
+
+    const adjTotalRow = ws2.addRow({
+        '职工姓名': '合计',
+        '个人补缴合计': adjustTotal
+    });
+    ws2.mergeCells(`A${adjTotalRow.number}:C${adjTotalRow.number}`);
+    adjTotalRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF6EC' } };
+        cell.font = { bold: true };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = { top: {style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+        if (cell.col === 4) {
+            cell.numFmt = '#,##0.00';
+        }
+    });
+
+    const buf = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `社保缴费汇总表_${new Date().toISOString().slice(0,10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addLog('✅ 导出完成！', 'success');
+}
+
+processBtn.addEventListener('click', processFiles);
+exportBtn.addEventListener('click', exportExcel);
+
+initLibs();
+</script>
+</body>
+</html>
