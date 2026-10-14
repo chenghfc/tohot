@@ -71,10 +71,10 @@ tr:nth-child(even) { background: #fafafa; }
 <div class="instruction-box">
     <div class="instruction-title">📖 操作说明</div>
     <ol class="instruction-list">
-        <li>上传的表格，从电子税务局→地方特色→社保业务→单位社保费→单位申报明细查询，将涉及月份职工明细分别导出（每个月医保社保各一张表）</li>
-        <li>同一属期的5个险种将自动整合成一行，并带出单位缴费合计和个人缴费合计</li>
-        <li>同一属期存在正常缴费和基数补差时，按申报日期分别生成</li>
-        <li>基数补缴统计表将针对同一员工、相同申报日期的补缴金额进行合并求和</li>
+        <li>上传的表格，从电子税务局→地方特色→社保业务→单位社保费→单位申报明细查询，将涉及月份职工明细分别导出（每个月医保社保各一张表）。</li>
+        <li>同一属期的5个险种将自动整合成一行，并带出单位缴费合计和个人缴费合计。</li>
+        <li>同一属期存在正常缴费和基数补差时，按申报日期分别生成.</li>
+        <li>基数补缴统计表将针对同一员工、相同申报日期的补缴金额进行合并求和。</li>
     </ol>
 </div>
 
@@ -173,7 +173,6 @@ async function initLibs() {
     }
 }
 
-// 文件选择事件
 uploadArea.addEventListener('click', () => fileInput.click());
 uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
 uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
@@ -321,35 +320,35 @@ async function processFiles() {
         return;
     }
 
-    // 统计基准基数（跨申报日期对比）
-    const personPeriodMax = {};
-    const personGlobalMax = {};
+    // 1. 统计每个员工在每个“费款所属期”下的所有申报日期，找出最早的申报日期
+    const personPeriodDates = {};
     rawRecords.forEach(r => {
         const ppKey = `${r.idcard}_${r.period}`;
-        if (!personPeriodMax[ppKey]) personPeriodMax[ppKey] = { renshe: 0, yibao: 0 };
-        if (!personGlobalMax[r.idcard]) personGlobalMax[r.idcard] = { renshe: 0, yibao: 0 };
-
-        const isRs = ['yanglao','shiye','gongshang'].includes(r.insType);
-        const isYb = ['yiliao','shengyu'].includes(r.insType);
-
-        if (isRs && r.base > personPeriodMax[ppKey].renshe) personPeriodMax[ppKey].renshe = r.base;
-        if (isYb && r.base > personPeriodMax[ppKey].yibao) personPeriodMax[ppKey].yibao = r.base;
-
-        if (isRs && r.base > personGlobalMax[r.idcard].renshe) personGlobalMax[r.idcard].renshe = r.base;
-        if (isYb && r.base > personGlobalMax[r.idcard].yibao) personGlobalMax[r.idcard].yibao = r.base;
+        if (!personPeriodDates[ppKey]) {
+            personPeriodDates[ppKey] = new Set();
+        }
+        if (r.declareDate) {
+            personPeriodDates[ppKey].add(r.declareDate);
+        }
     });
 
-    // 聚合分组
+    const earliestDateMap = {};
+    for (let ppKey in personPeriodDates) {
+        // 对申报日期升序排序，第一个即为最早日期
+        const dates = Array.from(personPeriodDates[ppKey]).sort();
+        earliestDateMap[ppKey] = dates[0] || '';
+    }
+
+    // 2. 聚合分组：按“员工 + 费款所属期 + 申报日期”合并五个险种为一行
     const groupMap = {};
     rawRecords.forEach(r => {
-        const key = `${r.idcard}_${r.period}_${r.declareDate}_${r.base.toFixed(2)}`;
+        const key = `${r.idcard}_${r.period}_${r.declareDate}`;
         if (!groupMap[key]) {
             groupMap[key] = {
                 name: r.name,
                 idcard: r.idcard,
                 period: r.period,
                 declareDate: r.declareDate,
-                base: r.base,
                 isExplicitAdjust: false,
                 records: []
             };
@@ -358,10 +357,11 @@ async function processFiles() {
         groupMap[key].records.push(r);
     });
 
+    // 3. 组装行数据，并按照“日期早为正常应缴，晚为基数调整补缴”判断
     for (let key in groupMap) {
         const group = groupMap[key];
         const ppKey = `${group.idcard}_${group.period}`;
-        const refMax = personPeriodMax[ppKey] || personGlobalMax[group.idcard];
+        const earliestDate = earliestDateMap[ppKey];
 
         const row = {
             name: group.name,
@@ -379,19 +379,13 @@ async function processFiles() {
             unitTotal: 0, personTotal: 0, total: 0
         };
 
-        let isRs = false, isYb = false;
-        group.records.forEach(r => {
-            if (['yanglao','shiye','gongshang'].includes(r.insType)) isRs = true;
-            if (['yiliao','shengyu'].includes(r.insType)) isYb = true;
-        });
-
+        // 判断规则：相同费款所属期，申报日期早的是正常应缴，晚的是基数调整补缴
         if (group.isExplicitAdjust) {
             row.payType = '基数调整补缴';
+        } else if (earliestDate && group.declareDate > earliestDate) {
+            row.payType = '基数调整补缴';
         } else {
-            let isNormal = true;
-            if (isRs && refMax.renshe > 0 && Math.abs(group.base - refMax.renshe) >= 0.01) isNormal = false;
-            if (isYb && refMax.yibao > 0 && Math.abs(group.base - refMax.yibao) >= 0.01) isNormal = false;
-            row.payType = isNormal ? '正常应缴' : '基数调整补缴';
+            row.payType = '正常应缴';
         }
 
         group.records.forEach(r => {
@@ -422,14 +416,14 @@ async function processFiles() {
             }
         });
 
-        row.unitTotal = row.yanglaoUnit + row.shiyeUnit + row.gongshangUnit + row.yiliaoUnit + row.shengyuUnit;
-        row.personTotal = row.yanglaoPerson + row.shiyePerson + row.yiliaoPerson;
-        row.total = row.unitTotal + row.personTotal;
+        row.unitTotal = Math.round((row.yanglaoUnit + row.shiyeUnit + row.gongshangUnit + row.yiliaoUnit + row.shengyuUnit) * 100) / 100;
+        row.personTotal = Math.round((row.yanglaoPerson + row.shiyePerson + row.yiliaoPerson) * 100) / 100;
+        row.total = Math.round((row.unitTotal + row.personTotal) * 100) / 100;
 
         summaryData.push(row);
     }
 
-    // 统计概览
+    // 4. 统计概览
     const persons = new Set(summaryData.map(r => r.idcard)).size;
     const periods = new Set(summaryData.map(r => r.period)).size;
     const normalCount = summaryData.filter(r => r.payType === '正常应缴').length;
