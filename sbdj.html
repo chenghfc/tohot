@@ -163,8 +163,8 @@ async function initLibs() {
     try {
         statusBar.textContent = '正在加载数据处理组件...';
         await Promise.all([
-            loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', 'XLSX数据解析库'),
-            loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', 'ExcelJS导出库')
+            loadScript('./js/xlsx.full.min.js', 'XLSX数据解析库'),
+            loadScript('./js/exceljs.min.js', 'ExcelJS导出库')
         ]);
         statusBar.textContent = '✓ 组件已就绪，请上传文件进行处理';
         processBtn.disabled = false;
