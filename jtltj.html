@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>接通率统计</title>
+    <script src="./js/xlsx.full.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, sans-serif;
+        }
+        body {
+            padding: 20px;
+            background: #f5f7fa;
+            margin:0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            padding:24px;
+            border-radius:10px;
+            box-shadow: 0 2px 10px #00000015;
+        }
+        .row-item{
+            margin-bottom:16px;
+        }
+        label{
+            display:inline-block;
+            margin-right:10px;
+            font-weight:500;
+        }
+        select, input[type="file"], button{
+            padding:8px 12px;
+            font-size:14px;
+            border:1px solid #ccc;
+            border-radius:6px;
+        }
+        button{
+            background:#2b7cd3;
+            color:#fff;
+            border:none;
+            cursor:pointer;
+            margin-right:8px;
+        }
+        button:hover{
+            background:#2068b4;
+        }
+        button#copyBtn{
+            background:#28a745;
+        }
+        button#copyBtn:hover{
+            background:#218838;
+        }
+        #dropArea{
+            border:2px dashed #b8c8e0;
+            border-radius:8px;
+            padding:30px;
+            text-align:center;
+            color:#666;
+            margin:20px 0;
+        }
+        #dropArea.active{
+            background:#e8f0fc;
+            border-color:#2b7cd3;
+        }
+        table{
+            width:100%;
+            border-collapse: collapse;
+            margin:16px 0;
+        }
+        th,td{
+            border:1px solid #ddd;
+            padding:8px 10px;
+            text-align:center;
+        }
+        th{
+            background:#f0f5fc;
+        }
+        .percent-cell{
+            color:#1c7b38;
+            font-weight:500;
+        }
+        .tip{
+            color:#666;
+            font-size:13px;
+        }
+        .copy-tip{
+            color:#28a745;
+            margin-left:8px;
+            display:none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>接通率统计</h2>
+    <div class="row-item">
+        <label>统计时间范围：</label>
+        <select id="timeRangeSelect">
+            <option value="08:00-19:30">申报期工作日（08:00-19:30）</option>
+            <option value="08:00-17:00">申报期休息日（08:00-17:00）</option>
+            <option value="08:30-17:30">非申报期工作日（08:30-17:30）</option>
+            <option value="08:30-17:00">非申报期休息日（08:30-17:00）</option>
+        </select>
+    </div>
+
+    <div id="dropArea">
+        拖拽Excel文件到这里，或者
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    </div>
+
+    <div class="row-item">
+        <button id="exportBtn" disabled>导出结果表格</button>
+        <button id="copyBtn" disabled>复制数据</button>
+        <span class="copy-tip" id="copyTip">✅已复制</span>
+    </div>
+
+    <div id="resultWrap"></div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const dropArea = document.getElementById('dropArea');
+const resultWrap = document.getElementById('resultWrap');
+const exportBtn = document.getElementById('exportBtn');
+const copyBtn = document.getElementById('copyBtn');
+const copyTip = document.getElementById('copyTip');
+const timeRangeSelect = document.getElementById('timeRangeSelect');
+
+let originWorkbook = null;
+let copyText = "";
+
+// 【增强版时间解析】支持 08:00 或者 2026-10-20 08:00，提取时分转分钟
+function timeToMin(rawVal){
+    if(rawVal === null || rawVal === undefined) return -1;
+    let s = String(rawVal).trim();
+    // 如果包含空格，取空格后面的时间部分 "2026-10-20 08:00" → "08:00"
+    if(s.indexOf(" ") > 0){
+        s = s.split(" ")[1];
+    }
+    const parts = s.split(':');
+    if(parts.length !==2) return -1;
+    const h = parseInt(parts[0],10);
+    const m = parseInt(parts[1],10);
+    if(isNaN(h)||isNaN(m)) return -1;
+    return h*60 + m;
+}
+
+function isInTimeRange(cellTime, rangeStr){
+    const tMin = timeToMin(cellTime);
+    if(tMin<0) return false;
+    const [startStr,endStr] = rangeStr.split('-');
+    const startMin = timeToMin(startStr);
+    const endMin = timeToMin(endStr);
+    return tMin >= startMin && tMin <= endMin;
+}
+
+function runProcess(workbook){
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet, {header:1});
+    if(json.length<2){
+        alert("表格数据不足，至少需要表头+一行数据");
+        return;
+    }
+    const headerRaw = json[0];
+    let rowsRaw = json.slice(1).filter(r => Array.isArray(r) && r.length>0);
+
+    const selectedRange = timeRangeSelect.value;
+
+    // 筛选
+    rowsRaw = rowsRaw.filter(r=> isInTimeRange(r[0], selectedRange));
+    // 按时间升序
+    rowsRaw.sort((a,b)=>{
+        const ta = timeToMin(a[0]);
+        const tb = timeToMin(b[0]);
+        return ta - tb;
+    });
+
+    if(rowsRaw.length ===0){
+        resultWrap.innerHTML = `<div style="color:red;font-size:16px">当前所选时间范围内没有匹配的数据！请更换时间范围或检查表格A列时间格式</div>`;
+        exportBtn.disabled = true;
+        copyBtn.disabled = true;
+        copyText = "";
+        return;
+    }
+
+    // ========== 复刻VBA Macro2 列操作 ==========
+    let header = [...headerRaw];
+    let rows = rowsRaw.map(r=>[...r]);
+
+    //1. 删除F列（原始F，数组索引5）
+    rows = rows.map(r=>{r.splice(5,1);return r;});
+    header.splice(5,1);
+    //2. 删除H:J（原始H I J，索引7开始删3列）
+    rows = rows.map(r=>{r.splice(7,3);return r;});
+    header.splice(7,3);
+    //3. H列剪切，插入B列前面（此时H=索引7，B=索引1）
+    rows = rows.map(r=>{
+        const val = r.splice(7,1)[0];
+        r.splice(1,0,val);
+        return r;
+    });
+    const hHead = header.splice(7,1)[0];
+    header.splice(1,0,hHead);
+    //4. 删除I:O，索引8开始删除7列
+    rows = rows.map(r=>{r.splice(8,7);return r;});
+    header.splice(8,7);
+
+    // ========== 计算公式 RC[-1]/RC[-5] ==========
+    rows.forEach(r=>{
+        const numerator = Number(r[6])||0;
+        const denominator = Number(r[2])||0;
+        let rate;
+        if(denominator ===0){
+            rate = 0; //0/0 →0%
+        }else{
+            rate = numerator / denominator;
+        }
+        r[7] = rate;
+    })
+
+    //组装输出
+    const outAOA = [header, ...rows];
+    const newSheet = XLSX.utils.aoa_to_sheet(outAOA);
+
+    //渲染预览
+    let html = "<table><thead><tr>";
+    header.forEach(h=>html+=`<th>${h||""}</th>`);
+    html += "</tr></thead><tbody>";
+    rows.forEach(row=>{
+        html += "<tr>";
+        row.forEach((cell,idx)=>{
+            let display = cell;
+            if(idx ===7){
+                display = (cell*100).toFixed(2)+"%";
+                html += `<td class="percent-cell">${display}</td>`;
+            }else{
+                html += `<td>${display??""}</td>`;
+            }
+        })
+        html += "</tr>";
+    })
+    html += "</tbody></table>";
+    resultWrap.innerHTML = html;
+
+    originWorkbook = {
+        sheet: newSheet,
+        aoa: outAOA
+    };
+    exportBtn.disabled = false;
+    copyBtn.disabled = false;
+
+    // ========== 构造复制文本【只复制数据行，不带表头】 ==========
+    const copyLines = [];
+    rows.forEach(r=>{
+        const sit = r[1]??"";
+        const ivr = r[2]??"";
+        const manIn = r[3]??"";
+        const manRate = r[4]??"";
+        const abandon = r[5]??"";
+        const answer = r[6]??"";
+        const rateStr = (Number(r[7])*100).toFixed(2)+"%";
+        const line = [sit, ivr, manIn, manRate, abandon, answer, rateStr].join("\t");
+        copyLines.push(line);
+    })
+    copyText = copyLines.join("\n");
+}
+
+//复制按钮事件
+copyBtn.onclick = async ()=>{
+    if(!copyText) return;
+    try{
+        await navigator.clipboard.writeText(copyText);
+        copyTip.style.display = "inline";
+        setTimeout(()=>copyTip.style.display="none",2000);
+    }catch(err){
+        alert("复制失败，请手动复制");
+    }
+}
+
+function handleFile(file){
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data,{type:"array"});
+        originWorkbook = wb;
+        runProcess(wb);
+    }
+    reader.readAsArrayBuffer(file);
+}
+
+fileInput.onchange = ()=> handleFile(fileInput.files[0]);
+dropArea.addEventListener('dragover',e=>{e.preventDefault();dropArea.classList.add('active');})
+dropArea.addEventListener('dragleave',()=>dropArea.classList.remove('active'))
+dropArea.addEventListener('drop',e=>{
+    e.preventDefault();dropArea.classList.remove('active');
+    if(e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        handleFile(fileInput.files[0]);
+    }
+})
+timeRangeSelect.onchange = ()=>{
+    if(originWorkbook){
+        runProcess(originWorkbook);
+    }
+}
+
+exportBtn.onclick = function(){
+    if(!originWorkbook) return;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, originWorkbook.sheet, "处理结果");
+    XLSX.writeFile(wb, "话务报表处理结果.xlsx");
+}
+</script>
+</body>
+</html>
