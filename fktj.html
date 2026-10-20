@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>双透视表数据统计工具</title>
+    <title>每日分库数据统计工具</title>
     <script src="./js/xlsx.full.min.js"></script>
     <script src="./js/vue.js"></script>
     <style>
@@ -27,14 +27,14 @@
         <div class="title">文件上传（上传后自动统计）</div>
         <div class="upload-area">
             <input type="file" accept=".xlsx,.xls" @change="handleFile" ref="fileInput">
-            <span class="tip">请上传Excel文件，字段：受理人、第一次流转时间、第一次流转受理时间、流转分库、处理人</span>
+            <span class="tip">请上传Excel文件</span>
         </div>
     </div>
 
     <div class="grid-row">
         <!-- 透视表1 -->
         <div class="panel">
-            <div class="title">透视表一｜行：受理人｜列：第一次流转时间、第一次流转受理时间（计数）</div>
+            <div class="title">透视表一</div>
             <table v-if="pivot1.length>0">
                 <thead>
                     <tr>
@@ -57,7 +57,7 @@
 
         <!-- 透视表2 -->
         <div class="panel">
-            <div class="title">透视表二｜行：流转分库+处理人｜按分库排序（空分库不纳入）</div>
+            <div class="title">透视表二</div>
             <table v-if="pivot2.length>0">
                 <thead>
                     <tr>
