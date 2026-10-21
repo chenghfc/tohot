@@ -11,9 +11,15 @@
         .container{max-width:1600px;margin:0 auto}
         .panel{background:#fff;padding:16px;border-radius:8px;box-shadow:0 1px 4px #ddd;margin-bottom:20px}
         .title{font-size:18px;font-weight:bold;margin-bottom:12px;color:#222}
+        
+        /* 标题栏带操作按钮的布局 */
+        .panel-header{display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;}
+        .panel-header .title{margin-bottom: 0;}
+        
         .upload-area{padding:12px;border:1px dashed #999;margin-bottom:16px}
-        button{padding:6px 14px;cursor:pointer;border:none;background:#409eff;color:#fff;border-radius:4px}
+        button{padding:6px 14px;cursor:pointer;border:none;background:#409eff;color:#fff;border-radius:4px;transition:0.2s}
         button:hover{background:#66b1ff}
+        button.success{background:#67c23a}
         table{border-collapse: collapse;width:100%;margin:8px 0;}
         th,td{border:1px solid #ccc;padding:8px;text-align:center;min-width:90px}
         th{background:#eef5ff}
@@ -34,7 +40,17 @@
     <div class="grid-row">
         <!-- 透视表1 -->
         <div class="panel">
-            <div class="title">透视表一</div>
+            <!-- 头部：标题与置顶的复制按钮 -->
+            <div class="panel-header">
+                <div class="title">透视表一</div>
+                <button 
+                    :class="{success: copySuccess}" 
+                    @click="copyPivot1" 
+                    v-if="pivot1.length>0">
+                    {{ copySuccess ? '✔ 复制成功' : '📋 复制表格（含表头）' }}
+                </button>
+            </div>
+
             <table v-if="pivot1.length>0">
                 <thead>
                     <tr>
@@ -52,7 +68,6 @@
                 </tbody>
             </table>
             <div v-else class="tip">暂无数据，请上传Excel文件</div>
-            <button style="margin-top:10px" @click="exportPivot1" v-if="pivot1.length>0">导出透视表1</button>
         </div>
 
         <!-- 透视表2 -->
@@ -75,20 +90,19 @@
                 </tbody>
             </table>
             <div v-else class="tip">暂无符合条件数据（检查【流转分库】列是否存在有效值）</div>
-            <button style="margin-top:10px" @click="exportPivot2" v-if="pivot2.length>0">导出透视表2</button>
         </div>
     </div>
 </div>
 
 <script>
-const { utils, writeFile } = XLSX;
 new Vue({
     el:'#app',
     data(){
         return {
             rawData:[],
             pivot1:[],
-            pivot2:[]
+            pivot2:[],
+            copySuccess: false
         }
     },
     methods:{
@@ -140,17 +154,52 @@ new Vue({
                 return a.chuliren.localeCompare(b.chuliren,'zh-CN');
             });
         },
-        exportPivot1(){
-            const ws = utils.json_to_sheet(this.pivot1);
-            const wb = utils.book_new();
-            utils.book_append_sheet(wb,ws,"透视表1");
-            writeFile(wb,"透视表1_受理人统计.xlsx");
+        copyPivot1(){
+            if(this.pivot1.length === 0) return;
+
+            // 1. 组装表头
+            const header = ['受理人', '第一次流转时间计数', '第一次流转受理时间计数'].join('\t');
+            
+            // 2. 组装数据行
+            const rows = this.pivot1.map(row => 
+                [row.name, row.col1, row.col2].join('\t')
+            );
+            
+            // 3. 拼接成完整文本（制表符分隔，换行符换行）
+            const fullText = [header, ...rows].join('\n');
+
+            // 4. 执行复制
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(fullText).then(() => {
+                    this.showCopySuccess();
+                }).catch(() => {
+                    this.fallbackCopy(fullText);
+                });
+            } else {
+                this.fallbackCopy(fullText);
+            }
         },
-        exportPivot2(){
-            const ws = utils.json_to_sheet(this.pivot2);
-            const wb = utils.book_new();
-            utils.book_append_sheet(wb,ws,"透视表2");
-            writeFile(wb,"透视表2_分库处理人统计.xlsx");
+        fallbackCopy(text){
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                this.showCopySuccess();
+            } catch (err) {
+                alert('复制失败，请手动选择复制');
+            }
+            document.body.removeChild(textArea);
+        },
+        showCopySuccess(){
+            this.copySuccess = true;
+            setTimeout(() => {
+                this.copySuccess = false;
+            }, 2000);
         }
     }
 })
