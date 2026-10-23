@@ -8,88 +8,114 @@
     <style>
         * {
             box-sizing: border-box;
-            font-family: system-ui, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         body {
             padding: 20px;
             background: #f5f7fa;
-            margin:0;
+            margin: 0;
         }
         .container {
             max-width: 1200px;
             margin: 0 auto;
             background: #fff;
-            padding:24px;
-            border-radius:10px;
-            box-shadow: 0 2px 10px #00000015;
+            padding: 24px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         }
-        .row-item{
-            margin-bottom:16px;
+        .row-item {
+            margin-bottom: 16px;
         }
-        label{
-            display:inline-block;
-            margin-right:10px;
-            font-weight:500;
+        label {
+            display: inline-block;
+            margin-right: 10px;
+            font-weight: 500;
         }
-        select, input[type="file"], button{
-            padding:8px 12px;
-            font-size:14px;
-            border:1px solid #ccc;
-            border-radius:6px;
+        select, input[type="file"], button {
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
         }
-        button{
-            background:#2b7cd3;
-            color:#fff;
-            border:none;
-            cursor:pointer;
-            margin-right:8px;
+        button {
+            background: #2b7cd3;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            margin-right: 8px;
+            transition: background 0.2s;
         }
-        button:hover{
-            background:#2068b4;
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
         }
-        button#copyBtn{
-            background:#28a745;
+        button:hover:not(:disabled) {
+            background: #2068b4;
         }
-        button#copyBtn:hover{
-            background:#218838;
+        button#copyBtn {
+            background: #28a745;
         }
-        #dropArea{
-            border:2px dashed #b8c8e0;
-            border-radius:8px;
-            padding:30px;
-            text-align:center;
-            color:#666;
-            margin:20px 0;
+        button#copyBtn:hover:not(:disabled) {
+            background: #218838;
         }
-        #dropArea.active{
-            background:#e8f0fc;
-            border-color:#2b7cd3;
+        #dropArea {
+            border: 2px dashed #b8c8e0;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        table{
-            width:100%;
+        #dropArea.active {
+            background: #e8f0fc;
+            border-color: #2b7cd3;
+        }
+        .summary-tip {
+            margin: 16px 0;
+            padding: 12px 16px;
+            background: #fff8e6;
+            border: 1px solid #ffd591;
+            border-radius: 6px;
+            color: #d4380d;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+        }
+        .summary-tip.show {
+            display: block;
+        }
+        .table-wrap {
+            overflow-x: auto;
+            margin-top: 16px;
+        }
+        table {
+            width: 100%;
             border-collapse: collapse;
-            margin:16px 0;
         }
-        th,td{
-            border:1px solid #ddd;
-            padding:8px 10px;
-            text-align:center;
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 10px;
+            text-align: center;
+            white-space: nowrap;
         }
-        th{
-            background:#f0f5fc;
+        th {
+            background: #f0f5fc;
         }
-        .percent-cell{
-            color:#1c7b38;
-            font-weight:500;
+        .percent-cell {
+            color: #1c7b38;
+            font-weight: 500;
         }
-        .tip{
-            color:#666;
-            font-size:13px;
+        .percent-cell.low-rate {
+            color: #d4380d;
+            font-weight: bold;
         }
-        .copy-tip{
-            color:#28a745;
-            margin-left:8px;
-            display:none;
+        .copy-tip {
+            color: #28a745;
+            margin-left: 8px;
+            display: none;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -107,213 +133,283 @@
     </div>
 
     <div id="dropArea">
-        拖拽Excel文件到这里，或者
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        拖拽Excel文件到这里，或者点击选择文件
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none;">
     </div>
 
     <div class="row-item">
         <button id="exportBtn" disabled>导出结果表格</button>
         <button id="copyBtn" disabled>复制数据</button>
-        <span class="copy-tip" id="copyTip">✅已复制</span>
+        <span class="copy-tip" id="copyTip">✅ 已复制</span>
     </div>
 
-    <div id="resultWrap"></div>
+    <!-- 低于90%统计提示框 -->
+    <div id="summaryTip" class="summary-tip"></div>
+
+    <div id="resultWrap" class="table-wrap"></div>
 </div>
 
 <script>
 const fileInput = document.getElementById('fileInput');
 const dropArea = document.getElementById('dropArea');
 const resultWrap = document.getElementById('resultWrap');
+const summaryTip = document.getElementById('summaryTip');
 const exportBtn = document.getElementById('exportBtn');
 const copyBtn = document.getElementById('copyBtn');
 const copyTip = document.getElementById('copyTip');
 const timeRangeSelect = document.getElementById('timeRangeSelect');
 
-let originWorkbook = null;
+let rawWorkbook = null;
+let processedSheet = null;
 let copyText = "";
 
-// 【增强版时间解析】支持 08:00 或者 2026-10-20 08:00，提取时分转分钟
-function timeToMin(rawVal){
-    if(rawVal === null || rawVal === undefined) return -1;
+dropArea.onclick = () => fileInput.click();
+
+// 时间解析：返回当天的总分钟数
+function timeToMin(rawVal) {
+    if (rawVal === null || rawVal === undefined || rawVal === "") return -1;
+
+    if (typeof rawVal === "number" && rawVal < 1) {
+        const totalMinutes = Math.round(rawVal * 24 * 60);
+        return totalMinutes % 1440;
+    }
+
     let s = String(rawVal).trim();
-    // 如果包含空格，取空格后面的时间部分 "2026-10-20 08:00" → "08:00"
-    if(s.indexOf(" ") > 0){
-        s = s.split(" ")[1];
+    if (s.includes(" ")) {
+        s = s.split(/\s+/)[1];
     }
     const parts = s.split(':');
-    if(parts.length !==2) return -1;
-    const h = parseInt(parts[0],10);
-    const m = parseInt(parts[1],10);
-    if(isNaN(h)||isNaN(m)) return -1;
-    return h*60 + m;
+    if (parts.length < 2) return -1;
+
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return -1;
+    return h * 60 + m;
 }
 
-function isInTimeRange(cellTime, rangeStr){
+// 分钟转中文表达：如 11点、11点半
+function minToCnTimeStr(min) {
+    const norm = (min % 1440 + 1440) % 1440;
+    const h = Math.floor(norm / 60);
+    const m = norm % 60;
+    if (m === 0) return `${h}点`;
+    if (m === 30) return `${h}点半`;
+    return `${h}点${m}分`;
+}
+
+// 根据起始时间生成 30 分钟中文区间：如 "11点-11点半"、"11点半-12点"
+function getTimeSlot30Min(rawVal) {
+    const startMin = timeToMin(rawVal);
+    if (startMin < 0) return String(rawVal);
+    const endMin = startMin + 30;
+    return `${minToCnTimeStr(startMin)}-${minToCnTimeStr(endMin)}`;
+}
+
+function isInTimeRange(cellTime, rangeStr) {
     const tMin = timeToMin(cellTime);
-    if(tMin<0) return false;
-    const [startStr,endStr] = rangeStr.split('-');
+    if (tMin < 0) return false;
+    const [startStr, endStr] = rangeStr.split('-');
     const startMin = timeToMin(startStr);
     const endMin = timeToMin(endStr);
     return tMin >= startMin && tMin <= endMin;
 }
 
-function runProcess(workbook){
+function runProcess(workbook) {
+    if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) return;
+    
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet, {header:1});
-    if(json.length<2){
+    const json = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+    
+    if (json.length < 2) {
         alert("表格数据不足，至少需要表头+一行数据");
         return;
     }
+
     const headerRaw = json[0];
-    let rowsRaw = json.slice(1).filter(r => Array.isArray(r) && r.length>0);
+    let rowsRaw = json.slice(1).filter(r => Array.isArray(r) && r.length > 0 && r[0] !== undefined);
 
     const selectedRange = timeRangeSelect.value;
 
-    // 筛选
-    rowsRaw = rowsRaw.filter(r=> isInTimeRange(r[0], selectedRange));
-    // 按时间升序
-    rowsRaw.sort((a,b)=>{
-        const ta = timeToMin(a[0]);
-        const tb = timeToMin(b[0]);
-        return ta - tb;
-    });
+    // 筛选有效时间
+    rowsRaw = rowsRaw.filter(r => isInTimeRange(r[0], selectedRange));
 
-    if(rowsRaw.length ===0){
-        resultWrap.innerHTML = `<div style="color:red;font-size:16px">当前所选时间范围内没有匹配的数据！请更换时间范围或检查表格A列时间格式</div>`;
+    // 按时间升序排序
+    rowsRaw.sort((a, b) => timeToMin(a[0]) - timeToMin(b[0]));
+
+    if (rowsRaw.length === 0) {
+        resultWrap.innerHTML = `<div style="color:red;font-size:15px;padding:10px 0;">当前所选时间范围内没有匹配的数据！请更换时间范围或检查表格第一列时间格式。</div>`;
+        summaryTip.classList.remove('show');
         exportBtn.disabled = true;
         copyBtn.disabled = true;
         copyText = "";
+        processedSheet = null;
         return;
     }
 
-    // ========== 复刻VBA Macro2 列操作 ==========
+    // ========== 复刻 VBA 列操作 ==========
     let header = [...headerRaw];
-    let rows = rowsRaw.map(r=>[...r]);
+    let rows = rowsRaw.map(r => [...r]);
 
-    //1. 删除F列（原始F，数组索引5）
-    rows = rows.map(r=>{r.splice(5,1);return r;});
-    header.splice(5,1);
-    //2. 删除H:J（原始H I J，索引7开始删3列）
-    rows = rows.map(r=>{r.splice(7,3);return r;});
-    header.splice(7,3);
-    //3. H列剪切，插入B列前面（此时H=索引7，B=索引1）
-    rows = rows.map(r=>{
-        const val = r.splice(7,1)[0];
-        r.splice(1,0,val);
+    // 1. 删除原始 F 列 (索引 5)
+    rows = rows.map(r => { r.splice(5, 1); return r; });
+    header.splice(5, 1);
+
+    // 2. 删除原始 H:J 列 (此时从索引 7 开始删除 3 列)
+    rows = rows.map(r => { r.splice(7, 3); return r; });
+    header.splice(7, 3);
+
+    // 3. 剪切此时的 H 列 (索引 7)，插入到 B 列前面 (索引 1)
+    rows = rows.map(r => {
+        const val = r.splice(7, 1)[0];
+        r.splice(1, 0, val);
         return r;
     });
-    const hHead = header.splice(7,1)[0];
-    header.splice(1,0,hHead);
-    //4. 删除I:O，索引8开始删除7列
-    rows = rows.map(r=>{r.splice(8,7);return r;});
-    header.splice(8,7);
+    const hHead = header.splice(7, 1)[0];
+    header.splice(1, 0, hHead);
 
-    // ========== 计算公式 RC[-1]/RC[-5] ==========
-    rows.forEach(r=>{
-        const numerator = Number(r[6])||0;
-        const denominator = Number(r[2])||0;
-        let rate;
-        if(denominator ===0){
-            rate = 0; //0/0 →0%
-        }else{
-            rate = numerator / denominator;
-        }
+    // 4. 删除此时的 I:O 列 (索引 8 开始删除 7 列)
+    rows = rows.map(r => { r.splice(8, 7); return r; });
+    header.splice(8, 7);
+
+    if (!header[7]) header[7] = "接通率";
+
+    // ========== 计算接通率 ==========
+    rows.forEach(r => {
+        const numerator = parseFloat(String(r[6]).replace(/,/g, '')) || 0;
+        const denominator = parseFloat(String(r[2]).replace(/,/g, '')) || 0;
+        let rate = denominator === 0 ? 0 : numerator / denominator;
         r[7] = rate;
-    })
+    });
 
-    //组装输出
-    const outAOA = [header, ...rows];
-    const newSheet = XLSX.utils.aoa_to_sheet(outAOA);
+    // ========== 统计低于90%且大于0%的区间 ==========
+    const lowRateSlots = [];
+    rows.forEach(r => {
+        const rate = Number(r[7]);
+        // 0% 不计数，低于 90% (即 0 < rate < 0.9)
+        if (rate > 0 && rate < 0.9) {
+            lowRateSlots.push(getTimeSlot30Min(r[0]));
+        }
+    });
 
-    //渲染预览
+    // 渲染统计提示语句（如：接通率低于90%：5次（11点-11点半，11点半-12点...））
+    if (lowRateSlots.length > 0) {
+        summaryTip.innerHTML = `接通率低于90%：${lowRateSlots.length}次（${lowRateSlots.join('，')}）`;
+    } else {
+        summaryTip.innerHTML = `接通率低于90%：0次`;
+    }
+    summaryTip.classList.add('show');
+
+    // 组装结果工作表
+    const outAOA = [header, ...rows.map(r => {
+        const rowCopy = [...r];
+        rowCopy[7] = (Number(rowCopy[7]) * 100).toFixed(2) + "%";
+        return rowCopy;
+    })];
+    processedSheet = XLSX.utils.aoa_to_sheet(outAOA);
+
+    // 渲染表格
     let html = "<table><thead><tr>";
-    header.forEach(h=>html+=`<th>${h||""}</th>`);
+    header.forEach(h => html += `<th>${h ?? ""}</th>`);
     html += "</tr></thead><tbody>";
-    rows.forEach(row=>{
+    rows.forEach(row => {
         html += "<tr>";
-        row.forEach((cell,idx)=>{
-            let display = cell;
-            if(idx ===7){
-                display = (cell*100).toFixed(2)+"%";
-                html += `<td class="percent-cell">${display}</td>`;
-            }else{
-                html += `<td>${display??""}</td>`;
+        row.forEach((cell, idx) => {
+            if (idx === 7) {
+                const rateNum = Number(cell);
+                const isLow = rateNum > 0 && rateNum < 0.9;
+                const display = (rateNum * 100).toFixed(2) + "%";
+                html += `<td class="percent-cell ${isLow ? 'low-rate' : ''}">${display}</td>`;
+            } else {
+                html += `<td>${cell ?? ""}</td>`;
             }
-        })
+        });
         html += "</tr>";
-    })
+    });
     html += "</tbody></table>";
     resultWrap.innerHTML = html;
 
-    originWorkbook = {
-        sheet: newSheet,
-        aoa: outAOA
-    };
     exportBtn.disabled = false;
     copyBtn.disabled = false;
 
-    // ========== 构造复制文本【只复制数据行，不带表头】 ==========
-    const copyLines = [];
-    rows.forEach(r=>{
-        const sit = r[1]??"";
-        const ivr = r[2]??"";
-        const manIn = r[3]??"";
-        const manRate = r[4]??"";
-        const abandon = r[5]??"";
-        const answer = r[6]??"";
-        const rateStr = (Number(r[7])*100).toFixed(2)+"%";
-        const line = [sit, ivr, manIn, manRate, abandon, answer, rateStr].join("\t");
-        copyLines.push(line);
-    })
+    // 构造复制文本
+    const copyLines = rows.map(r => {
+        const sit = r[1] ?? "";
+        const ivr = r[2] ?? "";
+        const manIn = r[3] ?? "";
+        const manRate = r[4] ?? "";
+        const abandon = r[5] ?? "";
+        const answer = r[6] ?? "";
+        const rateStr = (Number(r[7]) * 100).toFixed(2) + "%";
+        return [sit, ivr, manIn, manRate, abandon, answer, rateStr].join("\t");
+    });
     copyText = copyLines.join("\n");
 }
 
-//复制按钮事件
-copyBtn.onclick = async ()=>{
-    if(!copyText) return;
-    try{
-        await navigator.clipboard.writeText(copyText);
+// 复制功能
+copyBtn.onclick = async () => {
+    if (!copyText) return;
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(copyText);
+        } else {
+            const textArea = document.createElement("textarea");
+            textArea.value = copyText;
+            textArea.style.position = "fixed";
+            textArea.style.opacity = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+        }
         copyTip.style.display = "inline";
-        setTimeout(()=>copyTip.style.display="none",2000);
-    }catch(err){
-        alert("复制失败，请手动复制");
+        setTimeout(() => copyTip.style.display = "none", 2000);
+    } catch (err) {
+        alert("复制失败，请手动在控制台查看数据");
     }
-}
+};
 
-function handleFile(file){
-    if(!file) return;
+function handleFile(file) {
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = function(e){
+    reader.onload = function(e) {
         const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data,{type:"array"});
-        originWorkbook = wb;
-        runProcess(wb);
-    }
+        rawWorkbook = XLSX.read(data, { type: "array" });
+        runProcess(rawWorkbook);
+    };
     reader.readAsArrayBuffer(file);
 }
 
-fileInput.onchange = ()=> handleFile(fileInput.files[0]);
-dropArea.addEventListener('dragover',e=>{e.preventDefault();dropArea.classList.add('active');})
-dropArea.addEventListener('dragleave',()=>dropArea.classList.remove('active'))
-dropArea.addEventListener('drop',e=>{
-    e.preventDefault();dropArea.classList.remove('active');
-    if(e.dataTransfer.files.length) {
+fileInput.onchange = () => handleFile(fileInput.files[0]);
+
+dropArea.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropArea.classList.add('active');
+});
+
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('active'));
+
+dropArea.addEventListener('drop', e => {
+    e.preventDefault();
+    dropArea.classList.remove('active');
+    if (e.dataTransfer.files.length) {
         fileInput.files = e.dataTransfer.files;
         handleFile(fileInput.files[0]);
     }
-})
-timeRangeSelect.onchange = ()=>{
-    if(originWorkbook){
-        runProcess(originWorkbook);
-    }
-}
+});
 
-exportBtn.onclick = function(){
-    if(!originWorkbook) return;
+timeRangeSelect.onchange = () => {
+    if (rawWorkbook) {
+        runProcess(rawWorkbook);
+    }
+};
+
+exportBtn.onclick = function() {
+    if (!processedSheet) return;
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, originWorkbook.sheet, "处理结果");
+    XLSX.utils.book_append_sheet(wb, processedSheet, "处理结果");
     XLSX.writeFile(wb, "话务报表处理结果.xlsx");
-}
+};
 </script>
 </body>
 </html>
