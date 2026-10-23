@@ -126,9 +126,8 @@
         <label>统计时间范围：</label>
         <select id="timeRangeSelect">
             <option value="08:00-19:30">申报期工作日（08:00-19:30）</option>
-            <option value="08:00-17:00">申报期休息日（08:00-17:00）</option>
             <option value="08:30-17:30">非申报期工作日（08:30-17:30）</option>
-            <option value="08:30-17:00">非申报期休息日（08:30-17:00）</option>
+            <option value="08:30-17:00">非工作日（08:30-17:00）</option>
         </select>
     </div>
 
@@ -291,7 +290,7 @@ function runProcess(workbook) {
         }
     });
 
-    // 渲染统计提示语句（如：接通率低于90%：5次（11点-11点半，11点半-12点...））
+    // 渲染统计提示语句
     if (lowRateSlots.length > 0) {
         summaryTip.innerHTML = `接通率低于90%：${lowRateSlots.length}次（${lowRateSlots.join('，')}）`;
     } else {
